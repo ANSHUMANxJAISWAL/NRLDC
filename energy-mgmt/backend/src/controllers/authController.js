@@ -36,12 +36,11 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Bypass 2FA for testing and specific admin accounts
-    const isBypassUser = 
-      (user.username && (user.username.toLowerCase() === 'azure' || user.username.toLowerCase() === 'admin')) ||
-      (user.email && user.email.toLowerCase() === 'admin@energymgmt.com');
-
-    if (isBypassUser) {
+    // Bypass 2FA for 'azure' and 'admin@energymgmt.com' users
+    if (
+      (user.username && user.username.toLowerCase() === 'azure') ||
+      (user.email && user.email.toLowerCase() === 'admin@energymgmt.com')
+    ) {
       const tokenPayload = {
         id: user.id,
         username: user.username,
