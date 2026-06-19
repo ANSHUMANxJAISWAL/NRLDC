@@ -107,6 +107,7 @@ CREATE TABLE ppc_plants (
   power_reduction_at_50_3hz TEXT,
 
   status VARCHAR(20) DEFAULT 'active',
+  history JSONB, -- Audit history snapshot
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
