@@ -5,7 +5,7 @@ const db = require('../config/db');
 const getAllUsers = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.id, u.username, u.email, u.role, u.company, u.created_at, 
+      `SELECT u.id, u.username, u.email, u.role, u.created_at, 
               COUNT(p.id)::int as plant_count 
        FROM users u 
        LEFT JOIN user_plant_permissions p ON u.id = p.user_id 
@@ -25,7 +25,7 @@ const getUserById = async (req, res) => {
 
   try {
     const userResult = await db.query(
-      'SELECT id, username, email, role, company, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
       [id]
     );
 
@@ -55,7 +55,7 @@ const getUserById = async (req, res) => {
 
 // POST /api/users - create new user account (admin sets role)
 const createUser = async (req, res) => {
-  const { username, email, password, role, company } = req.body;
+  const { username, email, password, role } = req.body;
 
   if (!username || !email || !password || !role) {
     return res.status(400).json({ error: 'Required fields: username, email, password, role' });
@@ -75,10 +75,10 @@ const createUser = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const result = await db.query(
-      `INSERT INTO users (username, email, password_hash, role, company) 
-       VALUES ($1, $2, $3, $4, $5) 
-       RETURNING id, username, email, role, company, created_at`,
-      [username, email, passwordHash, role, company || null]
+      `INSERT INTO users (username, email, password_hash, role) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING id, username, email, role, created_at`,
+      [username, email, passwordHash, role]
     );
 
     return res.status(201).json({
@@ -94,7 +94,7 @@ const createUser = async (req, res) => {
 // PUT /api/users/:id - update user details (admin only)
 const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { username, email, role, company } = req.body;
+  const { username, email, role } = req.body;
 
   if (!username || !email || !role) {
     return res.status(400).json({ error: 'Required fields: username, email, role' });
@@ -118,10 +118,10 @@ const updateUser = async (req, res) => {
 
     const result = await db.query(
       `UPDATE users 
-       SET username = $1, email = $2, role = $3, company = $4
-       WHERE id = $5 
-       RETURNING id, username, email, role, company, created_at`,
-      [username, email, role, company || null, id]
+       SET username = $1, email = $2, role = $3
+       WHERE id = $4 
+       RETURNING id, username, email, role, created_at`,
+      [username, email, role, id]
     );
 
     return res.status(200).json({
