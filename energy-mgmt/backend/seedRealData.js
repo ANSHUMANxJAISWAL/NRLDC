@@ -89,8 +89,8 @@ const main = async () => {
     console.log(`Inserting ${powerPlants.length} power plants...`);
     for (const plant of powerPlants) {
       await client.query(`
-        INSERT INTO power_plants (id, name, owner, company_group, pooling_station, capacity_mw, commissioned_date, status, location)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO power_plants (id, name, owner, company_group, pooling_station, capacity_mw, commissioned_date, location)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `, [
         plant.id,
         plant.name,
@@ -99,7 +99,6 @@ const main = async () => {
         plant.pooling_station,
         plant.capacity_mw,
         plant.commissioned_date ? new Date(plant.commissioned_date) : null,
-        plant.status || 'active',
         plant.location
       ]);
     }
@@ -112,8 +111,8 @@ const main = async () => {
     console.log(`Inserting ${inverterGroups.length} inverter groups (representing ${inverterGroups.reduce((acc, curr) => acc + curr.count, 0)} units)...`);
     for (const group of inverterGroups) {
       await client.query(`
-        INSERT INTO inverters (id, plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, status, efficiency_percent, last_maintenance_date, lvrt, hvrt)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        INSERT INTO inverters (id, plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, efficiency_percent, last_maintenance_date, lvrt, hvrt)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       `, [
         group.id,
         group.plant_id,
@@ -126,7 +125,6 @@ const main = async () => {
         group.total_capacity_mw,
         group.pooling_station,
         group.owner,
-        group.status || 'online',
         group.efficiency_percent,
         group.last_maintenance_date ? new Date(group.last_maintenance_date) : null,
         group.lvrt ? JSON.stringify(group.lvrt) : null,

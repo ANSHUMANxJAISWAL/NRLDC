@@ -154,10 +154,6 @@ export const invertersAPI = {
     const response = await api.delete(`/api/inverters/${id}`);
     return response.data;
   },
-  updateStatus: async (id, status) => {
-    const response = await api.patch(`/api/inverters/${id}/status`, { status });
-    return response.data;
-  },
   exportCSV: async (filters = {}) => {
     const response = await api.get('/api/inverters/export', {
       params: filters,

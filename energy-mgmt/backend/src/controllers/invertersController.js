@@ -15,7 +15,7 @@ const verifyPlantPermission = async (userId, role, plantId, requiredPermission) 
 
 // GET /api/inverters - list inverters with advanced searching, filtering, sorting, pagination
 const getInverters = async (req, res) => {
-  const { plant_id, status, search, sort, order, page, limit } = req.query;
+  const { plant_id, status, type, search, sort, order, page, limit } = req.query;
 
   try {
     const pageNum = parseInt(page || '1', 10);
@@ -69,6 +69,12 @@ const getInverters = async (req, res) => {
     if (status && status !== 'All') {
       queryParams.push(status);
       whereClauses.push(`i.status = $${queryParams.length}`);
+    }
+
+    // 3b. Device Type Filter
+    if (type && type !== '' && type !== 'All') {
+      queryParams.push(type);
+      whereClauses.push(`i.type = $${queryParams.length}`);
     }
 
     // 4. Search Keyword (make, model, type, pooling_station, owner)
@@ -188,8 +194,8 @@ const createInverter = async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO inverters (plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, status, efficiency_percent, last_maintenance_date, lvrt, hvrt) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) 
+      `INSERT INTO inverters (plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, efficiency_percent, last_maintenance_date, lvrt, hvrt) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
        RETURNING *`,
       [
         plant_id,
@@ -202,7 +208,6 @@ const createInverter = async (req, res) => {
         total_capacity_mw,
         pooling_station || null,
         owner || null,
-        status || 'online',
         efficiency_percent !== undefined && efficiency_percent !== '' ? efficiency_percent : null,
         last_maintenance_date || null,
         lvrt ? JSON.stringify(lvrt) : null,
@@ -245,7 +250,6 @@ const updateInverter = async (req, res) => {
     total_capacity_mw,
     pooling_station,
     owner,
-    status,
     efficiency_percent,
     last_maintenance_date,
     lvrt,
@@ -279,7 +283,6 @@ const updateInverter = async (req, res) => {
       total_capacity_mw: 'Total Capacity (MW)',
       pooling_station: 'Pooling Station',
       owner: 'Owner',
-      status: 'Status',
       efficiency_percent: 'Efficiency %',
       last_maintenance_date: 'Last Maintenance Date'
     };
@@ -310,13 +313,12 @@ const updateInverter = async (req, res) => {
            total_capacity_mw = COALESCE($7, total_capacity_mw), 
            pooling_station = COALESCE($8, pooling_station), 
            owner = COALESCE($9, owner), 
-           status = COALESCE($10, status), 
-           efficiency_percent = COALESCE($11, efficiency_percent), 
-           last_maintenance_date = COALESCE($12, last_maintenance_date),
-           lvrt = COALESCE($13, lvrt),
-           hvrt = COALESCE($14, hvrt),
-           history = COALESCE($15, history)
-       WHERE id = $16 
+           efficiency_percent = COALESCE($10, efficiency_percent), 
+           last_maintenance_date = COALESCE($11, last_maintenance_date),
+           lvrt = COALESCE($12, lvrt),
+           hvrt = COALESCE($13, hvrt),
+           history = COALESCE($14, history)
+       WHERE id = $15 
        RETURNING *`,
       [
         make,
@@ -328,7 +330,6 @@ const updateInverter = async (req, res) => {
         total_capacity_mw,
         pooling_station,
         owner,
-        status,
         efficiency_percent !== undefined && efficiency_percent !== '' ? efficiency_percent : null,
         last_maintenance_date,
         lvrt ? JSON.stringify(lvrt) : null,
@@ -389,61 +390,10 @@ const deleteInverter = async (req, res) => {
   }
 };
 
-// PATCH /api/inverters/:id/status - update status field (restricted to Admin or write-permitted user)
-const patchInverterStatus = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  if (!status) {
-    return res.status(400).json({ error: 'Status is required' });
-  }
-
-  try {
-    const invResult = await db.query('SELECT * FROM inverters WHERE id = $1', [id]);
-    if (invResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Inverter not found' });
-    }
-
-    const inverter = invResult.rows[0];
-
-    // Enforce permission
-    const hasWrite = await verifyPlantPermission(req.user.id, req.user.role, inverter.plant_id, 'write');
-    if (!hasWrite) {
-      return res.status(403).json({ error: 'Access denied: You require write permission for this power plant to toggle inverter status' });
-    }
-
-    if (inverter.status !== status) {
-      const result = await db.query(
-        'UPDATE inverters SET status = $1 WHERE id = $2 RETURNING *',
-        [status, id]
-      );
-
-      // Log status patch
-      const username = req.user.username || req.user.email;
-      await db.query(
-        `INSERT INTO system_logs (user_id, username, action, details) VALUES ($1, $2, $3, $4)`,
-        [req.user.id, username, `Toggle Inverter Status (ID: ${id})`, `Status changed from "${inverter.status}" to "${status}" for "${inverter.make} ${inverter.model}".`]
-      );
-
-      return res.status(200).json({
-        message: 'Inverter group status updated successfully',
-        inverter: result.rows[0]
-      });
-    }
-
-    return res.status(200).json({
-      message: 'Inverter group status unchanged',
-      inverter
-    });
-  } catch (err) {
-    console.error('Error patching inverter status:', err);
-    return res.status(500).json({ error: 'Internal server error updating inverter status' });
-  }
-};
 
 // GET /api/inverters/export - returns CSV file
 const exportInvertersCSV = async (req, res) => {
-  const { plant_id, status } = req.query;
+  const { plant_id } = req.query;
 
   try {
     let selectQuery = `
@@ -478,12 +428,6 @@ const exportInvertersCSV = async (req, res) => {
         whereClauses.push(`i.plant_id = $${queryParams.length}`);
       }
     }
-
-    if (status && status !== 'All') {
-      queryParams.push(status);
-      whereClauses.push(`i.status = $${queryParams.length}`);
-    }
-
     if (whereClauses.length > 0) {
       selectQuery += ' WHERE ' + whereClauses.join(' AND ');
     }
@@ -493,13 +437,13 @@ const exportInvertersCSV = async (req, res) => {
     const result = await db.query(selectQuery, queryParams);
     const rows = result.rows;
 
-    let csvContent = 'Group ID,Make,Model,Type,Rating (MVA),Capacity (MW),Count,Total Capacity (MW),Pooling Station,Owner,Status,Efficiency %,Last Maintenance\n';
+    let csvContent = 'Group ID,Make,Model,Type,Rating (MVA),Capacity (MW),Count,Total Capacity (MW),Pooling Station,Owner,Efficiency %,Last Maintenance\n';
     
     rows.forEach(r => {
       const lastMaintenance = r.last_maintenance_date 
         ? new Date(r.last_maintenance_date).toISOString().split('T')[0] 
         : 'N/A';
-      csvContent += `"${r.id}","${r.make}","${r.model}","${r.type}",${r.rating_mva || 'N/A'},${r.capacity_mw},${r.count},${r.total_capacity_mw},"${r.pooling_station || 'N/A'}","${r.owner || 'N/A'}","${r.status}",${r.efficiency_percent !== null ? r.efficiency_percent : 'N/A'},"${lastMaintenance}"\n`;
+      csvContent += `"${r.id}","${r.make}","${r.model}","${r.type}",${r.rating_mva || 'N/A'},${r.capacity_mw},${r.count},${r.total_capacity_mw},"${r.pooling_station || 'N/A'}","${r.owner || 'N/A'}",${r.efficiency_percent !== null ? r.efficiency_percent : 'N/A'},"${lastMaintenance}"\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');
@@ -517,6 +461,5 @@ module.exports = {
   createInverter,
   updateInverter,
   deleteInverter,
-  patchInverterStatus,
   exportInvertersCSV,
 };

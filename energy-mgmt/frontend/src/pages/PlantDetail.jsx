@@ -110,7 +110,6 @@ const PlantDetail = () => {
       location: formData.get('location'),
       capacity_mw: parseFloat(formData.get('capacity_mw')),
       commissioned_date: formData.get('commissioned_date') || null,
-      status: formData.get('status'),
       owner: formData.get('owner') || null,
       company_group: formData.get('company_group') || null,
       pooling_station: formData.get('pooling_station') || null,
@@ -126,11 +125,30 @@ const PlantDetail = () => {
 
       if (ppcData) {
         await ppcPlantsAPI.update(ppcData.id, {
-          ...ppcData,
-          ppc_oem: ppcOEM,
+          plant_name: ppcData.plant_name,
+          wbes_acronym: ppcData.wbes_acronym,
+          capacity_mw: ppcData.capacity_mw,
           evacuating_line: evacLine,
           poi: poi,
-          owner: plantData.owner
+          owner: plantData.owner,
+          pooling_station_id: ppcData.pooling_station_id,
+          power_plant_id: ppcData.power_plant_id,
+          ppc_oem: ppcOEM,
+          ppc_mode_of_control: ppcData.ppc_mode_of_control,
+          ppc_reference_point: ppcData.ppc_reference_point,
+          ppc_reference_voltage_kv: ppcData.ppc_reference_voltage_kv,
+          ppc_voltage_deadband_pct: ppcData.ppc_voltage_deadband_pct,
+          ppc_voltage_droop_pct: ppcData.ppc_voltage_droop_pct,
+          max_reactive_power_injection_mvar: ppcData.max_reactive_power_injection_mvar,
+          max_reactive_power_absorption_mvar: ppcData.max_reactive_power_absorption_mvar,
+          ppc_comm_time_ms: ppcData.ppc_comm_time_ms,
+          ppc_sampling_time_ms: ppcData.ppc_sampling_time_ms,
+          ppc_total_exec_time_ms: ppcData.ppc_total_exec_time_ms,
+          freq_control_mode: ppcData.freq_control_mode,
+          freq_deadband: ppcData.freq_deadband,
+          freq_droop_pct: ppcData.freq_droop_pct,
+          power_reduction_at_50_3hz: ppcData.power_reduction_at_50_3hz,
+          history: ppcData.history
         });
       } else {
         await ppcPlantsAPI.create({
@@ -141,7 +159,6 @@ const PlantDetail = () => {
           evacuating_line: evacLine,
           poi: poi,
           owner: plantData.owner,
-          status: 'active'
         });
       }
 
@@ -172,7 +189,6 @@ const PlantDetail = () => {
       total_capacity_mw,
       pooling_station: plant?.pooling_station || null,
       owner: plant?.owner || null,
-      status: 'online'
     };
 
     try {
@@ -210,7 +226,6 @@ const PlantDetail = () => {
       total_capacity_mw: total_capacity_mvar,
       pooling_station: plant?.pooling_station || null,
       owner: plant?.owner || null,
-      status: 'online'
     };
 
     try {
@@ -279,7 +294,17 @@ const PlantDetail = () => {
     const newHistory = [revision, ...(currentInverter.history || [])];
 
     const updatedData = {
-      ...currentInverter,
+      make: currentInverter.make,
+      model: currentInverter.model,
+      type: currentInverter.type,
+      rating_mva: currentInverter.rating_mva,
+      capacity_mw: currentInverter.capacity_mw,
+      count: currentInverter.count,
+      total_capacity_mw: currentInverter.total_capacity_mw,
+      pooling_station: currentInverter.pooling_station,
+      owner: currentInverter.owner,
+      efficiency_percent: currentInverter.efficiency_percent,
+      last_maintenance_date: currentInverter.last_maintenance_date,
       lvrt: updatedLvrt,
       hvrt: updatedHvrt,
       history: newHistory
@@ -320,7 +345,19 @@ const PlantDetail = () => {
     // Filter out the deleted revision from history
     const updatedHistory = (currentEquipment.history || []).filter((_, i) => i !== idx);
     const updatedEquipment = {
-      ...currentEquipment,
+      make: currentEquipment.make,
+      model: currentEquipment.model,
+      type: currentEquipment.type,
+      rating_mva: currentEquipment.rating_mva,
+      capacity_mw: currentEquipment.capacity_mw,
+      count: currentEquipment.count,
+      total_capacity_mw: currentEquipment.total_capacity_mw,
+      pooling_station: currentEquipment.pooling_station,
+      owner: currentEquipment.owner,
+      efficiency_percent: currentEquipment.efficiency_percent,
+      last_maintenance_date: currentEquipment.last_maintenance_date,
+      lvrt: currentEquipment.lvrt,
+      hvrt: currentEquipment.hvrt,
       history: updatedHistory
     };
 
@@ -347,6 +384,24 @@ const PlantDetail = () => {
       loadPlantData();
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to delete settings revision.', 'error');
+    }
+  };
+
+  // Delete an inverter/SVG group entry (Admin only)
+  const handleDeleteInverter = async (inv) => {
+    if (user?.role !== 'admin') {
+      showToast('Only administrators can delete equipment entries.', 'error');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to permanently delete "${inv.make} ${inv.model}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await invertersAPI.delete(inv.id);
+      showToast(`"${inv.make} ${inv.model}" deleted successfully.`, 'success');
+      loadPlantData();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to delete equipment entry.', 'error');
     }
   };
 
@@ -378,7 +433,6 @@ const PlantDetail = () => {
       freq_droop_pct: formData.get('freq_droop_pct') || '',
       power_reduction_at_50_3hz: hasPowerReduction ? 'Yes' : 'No',
       owner: formData.get('owner') || '',
-      status: ppcData?.status || 'active'
     };
 
     // Calculate audit revision
@@ -702,12 +756,22 @@ const PlantDetail = () => {
                               <td className="p-3 text-slate-700 font-bold">{inv.count}</td>
                               <td className="p-3 text-slate-500 font-semibold">{inv.type}</td>
                               <td className="p-3 text-right">
-                                <button
-                                  onClick={() => setSelectedInverterForSettings(inv)}
-                                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 font-bold rounded-lg text-xs transition-all"
-                                >
-                                  Settings
-                                </button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setSelectedInverterForSettings(inv)}
+                                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 font-bold rounded-lg text-xs transition-all"
+                                  >
+                                    Settings
+                                  </button>
+                                  {user?.role === 'admin' && (
+                                    <button
+                                      onClick={() => handleDeleteInverter(inv)}
+                                      className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-lg text-xs transition-all"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -1165,12 +1229,22 @@ const PlantDetail = () => {
                               <td className="p-3 text-slate-600 font-medium">{svg.rating_mva ? `${svg.rating_mva} MVAr` : '—'}</td>
                               <td className="p-3 text-slate-700 font-bold">{svg.count}</td>
                               <td className="p-3 text-right">
-                                <button
-                                  onClick={() => setSelectedSvgForSettings(svg)}
-                                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 font-bold rounded-lg text-xs transition-all"
-                                >
-                                  Settings
-                                </button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setSelectedSvgForSettings(svg)}
+                                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-700 font-bold rounded-lg text-xs transition-all"
+                                  >
+                                    Settings
+                                  </button>
+                                  {user?.role === 'admin' && (
+                                    <button
+                                      onClick={() => handleDeleteInverter(svg)}
+                                      className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-lg text-xs transition-all"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -1887,17 +1961,6 @@ const PlantDetail = () => {
                     defaultValue={plant.commissioned_date ? new Date(plant.commissioned_date).toISOString().split('T')[0] : ''}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Operational Status</label>
-                  <select
-                    name="status" defaultValue={plant.status}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
                 </div>
               </div>
 

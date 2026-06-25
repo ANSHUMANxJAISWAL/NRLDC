@@ -105,12 +105,11 @@ const main = async () => {
           ppc_voltage_deadband_pct, ppc_voltage_droop_pct,
           max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
           ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
-          freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
-          status
+          freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,
           $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-          $20,$21,$22,$23,$24
+          $20,$21,$22,$23
         )`,
         [
           stationId,
@@ -136,7 +135,6 @@ const main = async () => {
           plant.freq_deadband || null,
           plant.freq_droop_pct || null,
           plant.power_reduction_at_50_3hz || null,
-          plant.status || 'active',
         ]
       );
 

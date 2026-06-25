@@ -161,18 +161,14 @@ const UserDashboard = () => {
                         </div>
 
                         {/* Inverter summary counts */}
-                        <div className="grid grid-cols-3 gap-2 py-3 bg-slate-50 rounded-2xl mb-5 text-center border border-slate-100">
+                        <div className="grid grid-cols-2 gap-4 py-3 bg-slate-50 rounded-2xl mb-5 text-center border border-slate-100">
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Inverters</div>
                             <div className="text-lg font-bold text-slate-800">{p.inverter_count}</div>
                           </div>
                           <div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Online</div>
-                            <div className="text-lg font-bold text-emerald-600">{p.online_count}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-rose-500">Fault</div>
-                            <div className="text-lg font-bold text-rose-600">{p.fault_count}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-teal-600">Capacity</div>
+                            <div className="text-lg font-bold text-teal-700">{Number(p.capacity_mw).toFixed(2)} MW</div>
                           </div>
                         </div>
                       </div>

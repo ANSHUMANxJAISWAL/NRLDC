@@ -103,7 +103,6 @@ const createPpcPlant = async (req, res) => {
     max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
     ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
     freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
-    status,
   } = req.body;
 
   if (!pooling_station_id || !plant_name) {
@@ -119,12 +118,11 @@ const createPpcPlant = async (req, res) => {
         ppc_voltage_deadband_pct, ppc_voltage_droop_pct,
         max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
         ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
-        freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
-        status
+        freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,
         $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-        $20,$21,$22,$23,$24
+        $20,$21,$22,$23
       ) RETURNING *`,
       [
         pooling_station_id, power_plant_id || null, plant_name, wbes_acronym || null,
@@ -135,7 +133,7 @@ const createPpcPlant = async (req, res) => {
         max_reactive_power_absorption_mvar || null, ppc_comm_time_ms || null,
         ppc_sampling_time_ms || null, ppc_total_exec_time_ms || null,
         freq_control_mode || null, freq_deadband || null, freq_droop_pct || null,
-        power_reduction_at_50_3hz || null, status || 'active',
+        power_reduction_at_50_3hz || null,
       ]
     );
 
@@ -198,7 +196,6 @@ const updatePpcPlant = async (req, res) => {
       freq_deadband: 'Frequency Deadband',
       freq_droop_pct: 'Frequency Droop %',
       power_reduction_at_50_3hz: 'Power Reduction @ 50.3Hz',
-      status: 'Status',
       pooling_station_id: 'Pooling Station ID',
       power_plant_id: 'Power Plant ID'
     };
@@ -222,18 +219,24 @@ const updatePpcPlant = async (req, res) => {
       'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar',
       'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms',
       'freq_control_mode', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz',
-      'status', 'pooling_station_id', 'power_plant_id', 'history'
+      'pooling_station_id', 'power_plant_id', 'history'
     ];
 
     const setClauses = [];
     const values = [];
     let idx = 1;
 
+    const numericFields = new Set(['capacity_mw', 'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms', 'ppc_reference_voltage_kv', 'ppc_voltage_deadband_pct', 'ppc_voltage_droop_pct', 'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz', 'pooling_station_id', 'power_plant_id']);
+
     for (const field of fields) {
       if (req.body[field] !== undefined) {
         setClauses.push(`${field} = $${idx++}`);
         if (field === 'history') {
           values.push(req.body[field] ? JSON.stringify(req.body[field]) : null);
+        } else if (numericFields.has(field)) {
+          // Coerce empty string to null for NUMERIC columns
+          const v = req.body[field];
+          values.push((v === '' || v === null || v === undefined) ? null : v);
         } else {
           values.push(req.body[field]);
         }

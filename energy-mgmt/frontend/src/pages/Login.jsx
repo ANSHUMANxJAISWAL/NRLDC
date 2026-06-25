@@ -184,7 +184,7 @@ const Login = () => {
             <img src="/logo.png" alt="GRID-INDIA Logo" className="h-14 object-contain" />
           </div>
           <p className="text-sm text-slate-450 mt-2 font-medium">
-            Power grid operations management portal
+            Renewable plants data repository portal
           </p>
         </div>
 

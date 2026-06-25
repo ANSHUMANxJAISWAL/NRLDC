@@ -14,10 +14,9 @@ router.get('/export', invertersController.exportInvertersCSV);
 router.get('/', invertersController.getInverters);
 router.get('/:id', invertersController.getInverterById);
 
-// Create, Update, Delete and Inline status patch endpoints
+// Create, Update, Delete endpoints
 router.post('/', invertersController.createInverter);
 router.put('/:id', invertersController.updateInverter);
 router.delete('/:id', requireRole('admin'), invertersController.deleteInverter); // Delete is Admin only
-router.patch('/:id/status', invertersController.patchInverterStatus); // Inline status updates
 
 module.exports = router;

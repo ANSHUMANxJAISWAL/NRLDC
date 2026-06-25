@@ -50,7 +50,7 @@ const AdminDashboard = () => {
 
   // Filter/Search/Paging States (for Inverters Tab)
   const [invPlantFilter, setInvPlantFilter] = useState('');
-  const [invStatusFilter, setInvStatusFilter] = useState('All');
+  const [invTypeFilter, setInvTypeFilter] = useState('All');
   const [invSearch, setInvSearch] = useState('');
   const [invSort, setInvSort] = useState('id');
   const [invOrder, setInvOrder] = useState('desc');
@@ -112,7 +112,7 @@ const AdminDashboard = () => {
       } else if (activeTab === 'inverters') {
         const data = await invertersAPI.getAll({
           plant_id: invPlantFilter,
-          status: invStatusFilter,
+          type: invTypeFilter !== 'All' ? invTypeFilter : '',
           search: invSearch,
           sort: invSort,
           order: invOrder,
@@ -147,7 +147,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, invPlantFilter, invStatusFilter, invSearch, invSort, invOrder, invPage, invLimit, showToast]);
+  }, [activeTab, invPlantFilter, invTypeFilter, invSearch, invSort, invOrder, invPage, invLimit, showToast]);
 
   useEffect(() => {
     fetchData();
@@ -203,7 +203,6 @@ const AdminDashboard = () => {
       location: formData.get('location'),
       capacity_mw: parseFloat(formData.get('capacity_mw')),
       commissioned_date: formData.get('commissioned_date') || null,
-      status: formData.get('status'),
       owner: formData.get('owner') || null,
       company_group: formData.get('company_group') || null,
       pooling_station: formData.get('pooling_station') || null,
@@ -284,7 +283,6 @@ const AdminDashboard = () => {
       total_capacity_mw: total_capacity_mw,
       pooling_station: formData.get('pooling_station') || null,
       owner: formData.get('owner') || null,
-      status: formData.get('status'),
       efficiency_percent: inverterModal.type === 'edit' ? inverterModal.data.efficiency_percent : null,
       last_maintenance_date: formData.get('last_maintenance_date') || null,
     };
@@ -306,17 +304,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const handlePatchStatus = async (invId, makeModel, newStatus) => {
-    try {
-      await invertersAPI.updateStatus(invId, newStatus);
-      showToast(`Inverter status updated to ${newStatus}.`, 'success');
-      logAction(`Updated inverter "${makeModel}" status → ${newStatus}.`);
-      fetchData();
-    } catch (err) {
-      showToast('Failed to update inverter status.', 'error');
-    }
-  };
-
   const handleOpenDeleteInverter = (inv) => {
     setDeleteConfirm({
       isOpen: true,
@@ -330,7 +317,7 @@ const AdminDashboard = () => {
     try {
       const blob = await invertersAPI.exportCSV({
         plant_id: invPlantFilter,
-        status: invStatusFilter,
+        type: invTypeFilter !== 'All' ? invTypeFilter : '',
       });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
@@ -678,8 +665,12 @@ const AdminDashboard = () => {
   // --- Calculations for Overview Chart & Cards ---
   const totalPlants = plants.length;
   const totalInverters = inverters.reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
-  const onlineInverters = inverters.filter(i => i.status === 'online').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
-  const faultedInverters = inverters.filter(i => i.status === 'fault').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalCentralInverters = inverters.filter(i => i.type === 'Central').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalStringInverters = inverters.filter(i => i.type === 'String').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalWTGs = inverters.filter(i => i.type === 'WTG').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalBESS = inverters.filter(i => i.type === 'BESS').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalSVGs = inverters.filter(i => i.type === 'SVG').reduce((acc, curr) => acc + (parseInt(curr.count, 10) || 0), 0);
+  const totalCapacityMW = plants.reduce((acc, p) => acc + parseFloat(p.capacity_mw || 0), 0);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -819,11 +810,11 @@ const AdminDashboard = () => {
             <div className="space-y-6">
               {/* Headline */}
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">Operational Overview</h2>
+                <h2 className="text-2xl font-bold text-slate-800">Overview of ISTS connected Solar/WTG/BESS/Hybrid Plants</h2>
                 <p className="text-sm text-slate-500 font-medium">Real-time status summaries of connected grids</p>
               </div>
 
-              {/* Stats Card Grid */}
+              {/* Stats Card Grid — Row 1 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Plants</div>
@@ -834,8 +825,32 @@ const AdminDashboard = () => {
                   <div className="text-3xl font-extrabold text-slate-800 mt-2">{totalInverters}</div>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Online Inverters</div>
-                  <div className="text-3xl font-extrabold text-emerald-600 mt-2">{onlineInverters}</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Capacity (MW)</div>
+                  <div className="text-3xl font-extrabold text-teal-600 mt-2">{totalCapacityMW.toFixed(2)}</div>
+                </div>
+              </div>
+
+              {/* Stats Card Grid — Row 2: Device Type Breakdown */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Central Inverters</div>
+                  <div className="text-2xl font-extrabold text-slate-800 mt-2">{totalCentralInverters}</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">String Inverters</div>
+                  <div className="text-2xl font-extrabold text-slate-800 mt-2">{totalStringInverters}</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total WTGs</div>
+                  <div className="text-2xl font-extrabold text-blue-600 mt-2">{totalWTGs}</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total BESS</div>
+                  <div className="text-2xl font-extrabold text-amber-600 mt-2">{totalBESS}</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total SVGs</div>
+                  <div className="text-2xl font-extrabold text-violet-600 mt-2">{totalSVGs}</div>
                 </div>
               </div>
 
@@ -1406,17 +1421,18 @@ const AdminDashboard = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Inverter Status</label>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device Type</label>
                   <select
-                    value={invStatusFilter}
-                    onChange={(e) => { setInvStatusFilter(e.target.value); setInvPage(1); }}
+                    value={invTypeFilter}
+                    onChange={(e) => { setInvTypeFilter(e.target.value); setInvPage(1); }}
                     className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
                   >
-                    <option value="All">All Statuses</option>
-                    <option value="online">Online</option>
-                    <option value="offline">Offline</option>
-                    <option value="fault">Fault</option>
-                    <option value="maintenance">Maintenance</option>
+                    <option value="All">All Devices</option>
+                    <option value="Central">Central Inverters</option>
+                    <option value="String">String Inverters</option>
+                    <option value="WTG">WTG (Wind)</option>
+                    <option value="BESS">BESS (Battery)</option>
+                    <option value="SVG">SVG</option>
                   </select>
                 </div>
               </div>
@@ -1711,14 +1727,17 @@ const AdminDashboard = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Company Group</label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Assign to User</label>
+                  <select
                     name="company_group"
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.company_group : (plantModal.data?.company_group || '')}
-                    placeholder="e.g. Adani"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                    defaultValue={plantModal.type === 'edit' ? plantModal.data.company_group : ''}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                  >
+                    <option value="">— Select User —</option>
+                    {users.filter(u => u.role === 'user').map(u => (
+                      <option key={u.id} value={u.username}>{u.username}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1757,18 +1776,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Operational Status</label>
-                <select
-                  name="status"
-                  defaultValue={plantModal.type === 'edit' ? plantModal.data.status : 'active'}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-              </div>
+
 
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                 <button
@@ -1940,7 +1948,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Last Maintenance Date</label>
                   <input
@@ -1949,19 +1957,6 @@ const AdminDashboard = () => {
                     defaultValue={inverterModal.type === 'edit' && inverterModal.data.last_maintenance_date ? new Date(inverterModal.data.last_maintenance_date).toISOString().split('T')[0] : ''}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Status</label>
-                  <select
-                    name="status"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.status : 'online'}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
-                  >
-                    <option value="online">Online</option>
-                    <option value="offline">Offline</option>
-                    <option value="fault">Fault</option>
-                    <option value="maintenance">Maintenance</option>
-                  </select>
                 </div>
               </div>
 
@@ -2449,15 +2444,6 @@ const AdminDashboard = () => {
                     ? `Power Plant: ${detailModal.data.name}`
                     : `PPC Plant Controller: ${detailModal.data.plant_name}`}
                 </h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize inline-block mt-1 ${
-                  detailModal.data.status === 'online' || detailModal.data.status === 'active'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                    : detailModal.data.status === 'maintenance'
-                    ? 'bg-amber-50 text-amber-700 border-amber-100'
-                    : 'bg-slate-50 text-slate-500 border-slate-200'
-                }`}>
-                  {detailModal.data.status}
-                </span>
               </div>
               <button
                 onClick={() => setDetailModal({ isOpen: false, type: '', data: null })}
@@ -2480,7 +2466,6 @@ const AdminDashboard = () => {
                     ['Capacity (MW)', `${detailModal.data.capacity_mw} MW`],
                     ['Location / Area', detailModal.data.location],
                     ['Pooling Station Connection', detailModal.data.pooling_station],
-                    ['Status', detailModal.data.status],
                     ['Commissioned Date', detailModal.data.commissioned_date ? new Date(detailModal.data.commissioned_date).toLocaleDateString() : '—'],
                     ['Inverter Units Count', detailModal.data.inverter_count ? `${detailModal.data.inverter_count} units` : '0 units'],
                   ].map(([lbl, val]) => (

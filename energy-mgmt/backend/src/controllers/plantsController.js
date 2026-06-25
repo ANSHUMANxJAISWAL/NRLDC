@@ -2,16 +2,13 @@ const db = require('../config/db');
 
 // GET /api/plants - list all plants with inverter count summary (scoped by read permissions)
 const getAllPlants = async (req, res) => {
-  const { status, search } = req.query;
+  const { search } = req.query;
 
   try {
     let queryText = `
       SELECT p.*, 
              MAX(pp.ppc_oem) AS ppc_oem,
              COALESCE(SUM(i.count), 0)::int as inverter_count,
-             COALESCE(SUM(CASE WHEN i.status = 'online' THEN i.count ELSE 0 END), 0)::int as online_count,
-             COALESCE(SUM(CASE WHEN i.status = 'fault' THEN i.count ELSE 0 END), 0)::int as fault_count,
-             COALESCE(SUM(CASE WHEN i.status = 'offline' THEN i.count ELSE 0 END), 0)::int as offline_count,
              COALESCE(string_agg(DISTINCT i.make, ', ') FILTER (WHERE i.type != 'SVG' AND i.make IS NOT NULL), '—') as inverter_makes,
              COALESCE(string_agg(DISTINCT i.make, ', ') FILTER (WHERE i.type = 'SVG' AND i.make IS NOT NULL), '—') as svg_makes,
              COALESCE(SUM(i.total_capacity_mw), 0)::numeric as total_inverter_capacity
@@ -33,13 +30,7 @@ const getAllPlants = async (req, res) => {
       )`);
     }
 
-    // 2. Status filtering
-    if (status) {
-      queryParams.push(status);
-      whereClauses.push(`p.status = $${queryParams.length}`);
-    }
-
-    // 3. Search filter
+    // 2. Search filter
     if (search) {
       queryParams.push(`%${search}%`);
       whereClauses.push(`(p.name ILIKE $${queryParams.length} OR p.location ILIKE $${queryParams.length})`);
@@ -137,7 +128,7 @@ const getPlantById = async (req, res) => {
 
 // POST /api/plants - create plant (Admin only)
 const createPlant = async (req, res) => {
-  const { name, location, capacity_mw, commissioned_date, status, owner, company_group, pooling_station } = req.body;
+  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station } = req.body;
 
   if (!name || !location || !capacity_mw) {
     return res.status(400).json({ error: 'Required fields: name, location, capacity_mw' });
@@ -145,10 +136,10 @@ const createPlant = async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO power_plants (name, location, capacity_mw, commissioned_date, status, owner, company_group, pooling_station) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      `INSERT INTO power_plants (name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
        RETURNING *`,
-      [name, location, capacity_mw, commissioned_date || null, status || 'active', owner || null, company_group || null, pooling_station || null]
+      [name, location, capacity_mw, commissioned_date || null, owner || null, company_group || null, pooling_station || null]
     );
 
     // Log creation
@@ -172,7 +163,7 @@ const createPlant = async (req, res) => {
 // PUT /api/plants/:id - update plant (Admin only)
 const updatePlant = async (req, res) => {
   const { id } = req.params;
-  const { name, location, capacity_mw, commissioned_date, status, owner, company_group, pooling_station } = req.body;
+  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station } = req.body;
 
   try {
     const check = await db.query('SELECT * FROM power_plants WHERE id = $1', [id]);
@@ -189,7 +180,6 @@ const updatePlant = async (req, res) => {
       location: 'Location',
       capacity_mw: 'Capacity (MW)',
       commissioned_date: 'Commissioned Date',
-      status: 'Status',
       owner: 'Owner',
       company_group: 'Company Group',
       pooling_station: 'Pooling Station'
@@ -209,13 +199,21 @@ const updatePlant = async (req, res) => {
            location = COALESCE($2, location), 
            capacity_mw = COALESCE($3, capacity_mw), 
            commissioned_date = COALESCE($4, commissioned_date), 
-           status = COALESCE($5, status),
-           owner = COALESCE($6, owner),
-           company_group = COALESCE($7, company_group),
-           pooling_station = COALESCE($8, pooling_station)
-       WHERE id = $9 
+           owner = COALESCE($5, owner),
+           company_group = COALESCE($6, company_group),
+           pooling_station = COALESCE($7, pooling_station)
+       WHERE id = $8 
        RETURNING *`,
-      [name, location, capacity_mw, commissioned_date, status, owner, company_group, pooling_station, id]
+      [
+        name || null,
+        location || null,
+        capacity_mw || null,
+        (commissioned_date && commissioned_date !== '') ? commissioned_date : null,
+        owner || null,
+        company_group || null,
+        pooling_station || null,
+        id
+      ]
     );
 
     // Save changes to log

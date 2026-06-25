@@ -1,4 +1,5 @@
 -- Drop tables and types if they exist for clean initialization
+DROP TABLE IF EXISTS system_logs CASCADE;
 DROP TABLE IF EXISTS user_plant_permissions CASCADE;
 DROP TABLE IF EXISTS inverters CASCADE;
 DROP TABLE IF EXISTS ppc_plants CASCADE;
@@ -12,8 +13,6 @@ DROP TYPE IF EXISTS user_role CASCADE;
 
 -- Create Enum Types
 CREATE TYPE user_role AS ENUM ('admin', 'user');
-CREATE TYPE plant_status AS ENUM ('active', 'inactive', 'maintenance');
-CREATE TYPE inverter_status AS ENUM ('online', 'offline', 'fault', 'maintenance');
 
 -- Pooling Stations table (220kV/400kV grid substations)
 CREATE TABLE pooling_stations (
@@ -49,7 +48,6 @@ CREATE TABLE power_plants (
     pooling_station VARCHAR(255),
     capacity_mw NUMERIC(10, 3) NOT NULL,
     commissioned_date DATE, -- Nullable to handle missing dates in real data
-    status plant_status DEFAULT 'active' NOT NULL,
     location VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -67,11 +65,11 @@ CREATE TABLE inverters (
     total_capacity_mw NUMERIC(10, 3) NOT NULL,
     pooling_station VARCHAR(255),
     owner VARCHAR(100),
-    status inverter_status DEFAULT 'online' NOT NULL,
     efficiency_percent NUMERIC(5, 2) CHECK (efficiency_percent >= 0 AND efficiency_percent <= 100), -- Nullable
     last_maintenance_date DATE,
     lvrt JSONB, -- Low Voltage Ride Through settings
     hvrt JSONB, -- High Voltage Ride Through settings
+    history JSONB, -- Audit history of protection settings revisions
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -106,7 +104,6 @@ CREATE TABLE ppc_plants (
   freq_droop_pct VARCHAR(20),
   power_reduction_at_50_3hz TEXT,
 
-  status VARCHAR(20) DEFAULT 'active',
   history JSONB, -- Audit history snapshot
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

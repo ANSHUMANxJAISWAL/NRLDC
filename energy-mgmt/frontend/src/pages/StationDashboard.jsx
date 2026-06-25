@@ -8,21 +8,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend
 } from 'recharts';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const StatusBadge = ({ status }) => {
-  const styles = {
-    active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    maintenance: 'bg-amber-50 text-amber-700 border-amber-100',
-    inactive: 'bg-slate-50 text-slate-500 border-slate-100',
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${styles[status] || styles.inactive}`}>
-      {status || 'unknown'}
-    </span>
-  );
-};
-
 const InfoRow = ({ label, value }) => (
   <div className="flex justify-between items-start py-2.5 border-b border-slate-50 last:border-0">
     <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide w-1/2 flex-shrink-0">{label}</span>
@@ -37,7 +22,7 @@ const exportToCSV = (plants, stationName) => {
     'PPC OEM', 'Mode of Control', 'Ref Voltage (kV)', 'Deadband %', 'Droop %',
     'Max Q Inj (MVAr)', 'Max Q Abs (MVAr)', 'Comm Time (ms)', 'Sampling Time (ms)',
     'Exec Time (ms)', 'Freq Mode', 'Freq Deadband', 'Freq Droop %',
-    'Power Reduction @50.3Hz', 'Status'
+    'Power Reduction @50.3Hz'
   ];
 
   const rows = plants.map(p => [
@@ -47,7 +32,7 @@ const exportToCSV = (plants, stationName) => {
     p.max_reactive_power_injection_mvar, p.max_reactive_power_absorption_mvar,
     p.ppc_comm_time_ms, p.ppc_sampling_time_ms, p.ppc_total_exec_time_ms,
     p.freq_control_mode, p.freq_deadband, p.freq_droop_pct,
-    p.power_reduction_at_50_3hz, p.status
+    p.power_reduction_at_50_3hz
   ].map(v => `"${v ?? ''}"`));
 
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -107,14 +92,7 @@ const StationDashboard = () => {
   const chartData = plants.map(p => ({
     name: p.wbes_acronym || p.plant_name.substring(0, 12),
     capacity: parseFloat(p.capacity_mw || 0),
-    status: p.status,
   })).sort((a, b) => b.capacity - a.capacity);
-
-  const barColor = (status) => {
-    if (status === 'active') return '#10b981';
-    if (status === 'maintenance') return '#f59e0b';
-    return '#94a3b8';
-  };
 
   // Filtered plants for table
   const filteredPlants = plants.filter(p => {
@@ -216,7 +194,6 @@ const StationDashboard = () => {
               {/* Recharts Bar Chart */}
               <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
                 <h3 className="text-base font-bold text-slate-800 mb-1">Plant Capacity Distribution (MW)</h3>
-                <p className="text-xs text-slate-400 font-medium mb-5">Color: 🟢 Active · 🟡 Maintenance · ⚪ Other</p>
                 {chartData.length === 0 ? (
                   <div className="text-sm text-slate-400 py-10 text-center">No plant data available.</div>
                 ) : (
@@ -235,19 +212,10 @@ const StationDashboard = () => {
                         formatter={(val) => [`${val} MW`, 'Capacity']}
                         contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
                       />
-                      <Bar dataKey="capacity" radius={[4, 4, 0, 0]}>
-                        {chartData.map((entry, idx) => (
-                          <Cell key={idx} fill={barColor(entry.status)} />
-                        ))}
-                      </Bar>
+                      <Bar dataKey="capacity" fill="#0f766e" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
-                <div className="flex gap-4 items-center justify-center mt-2 text-xs font-semibold text-slate-500">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500"></span>Active</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-400"></span>Maintenance</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-400"></span>Other</span>
-                </div>
               </div>
 
               {/* Quick summary table */}
@@ -363,7 +331,6 @@ const StationDashboard = () => {
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="text-sm font-bold text-slate-800 leading-snug">{selectedPlant.plant_name}</h3>
-                        <StatusBadge status={selectedPlant.status} />
                       </div>
                       <button onClick={() => setSelectedPlant(null)} className="text-slate-400 hover:text-slate-600 ml-2 flex-shrink-0">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -455,8 +422,6 @@ const StationDashboard = () => {
                       { label: 'Total PPC Plants', value: plants.length, color: 'text-teal-700' },
                       { label: 'With PPC Data', value: withPpcData, color: 'text-emerald-700' },
                       { label: 'Pending Data Entry', value: pendingData, color: 'text-amber-600' },
-                      { label: 'Active Plants', value: plants.filter(p => p.status === 'active').length, color: 'text-emerald-700' },
-                      { label: 'Under Maintenance', value: plants.filter(p => p.status === 'maintenance').length, color: 'text-amber-600' },
                     ].map(({ label, value, color }) => (
                       <div key={label} className="flex justify-between items-center">
                         <span className="text-sm text-slate-500 font-medium">{label}</span>
@@ -482,7 +447,6 @@ const StationDashboard = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-bold text-teal-700">{p.capacity_mw} MW</span>
-                        <StatusBadge status={p.status} />
                       </div>
                     </div>
                   ))}
