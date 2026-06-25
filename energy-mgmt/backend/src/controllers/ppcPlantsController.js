@@ -30,10 +30,6 @@ const getAllPpcPlants = async (req, res) => {
       params.push(`%${search}%`);
       idx++;
     }
-    if (status) {
-      conditions.push(`pp.status = $${idx++}`);
-      params.push(status);
-    }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -110,6 +106,19 @@ const createPpcPlant = async (req, res) => {
   }
 
   try {
+    if (req.user.role === 'user') {
+      if (!power_plant_id) {
+        return res.status(400).json({ error: 'power_plant_id is required to verify permissions' });
+      }
+      const permCheck = await db.query(
+        'SELECT can_write FROM user_plant_permissions WHERE user_id = $1 AND plant_id = $2',
+        [req.user.id, power_plant_id]
+      );
+      if (permCheck.rows.length === 0 || !permCheck.rows[0].can_write) {
+        return res.status(403).json({ error: 'Access denied: You require write permission for this power plant to create a PPC setting' });
+      }
+    }
+
     const result = await db.query(
       `INSERT INTO ppc_plants (
         pooling_station_id, power_plant_id, plant_name, wbes_acronym, capacity_mw,
@@ -169,6 +178,15 @@ const updatePpcPlant = async (req, res) => {
     if (req.user.role === 'pooling_station') {
       if (oldPpc.pooling_station_id !== req.user.pooling_station_id) {
         return res.status(403).json({ error: 'Access denied: You cannot edit plants in another pooling station' });
+      }
+    } else if (req.user.role === 'user') {
+      // Check if regular user has write permission for this plant
+      const permCheck = await db.query(
+        'SELECT can_write FROM user_plant_permissions WHERE user_id = $1 AND plant_id = $2',
+        [req.user.id, oldPpc.power_plant_id]
+      );
+      if (permCheck.rows.length === 0 || !permCheck.rows[0].can_write) {
+        return res.status(403).json({ error: 'Access denied: You require write permission for this power plant to edit its PPC settings' });
       }
     }
 

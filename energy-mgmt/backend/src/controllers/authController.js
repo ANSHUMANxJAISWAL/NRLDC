@@ -290,7 +290,7 @@ const getMe = async (req, res) => {
     } else if (user.role === 'pooling_station') {
       // Pooling station users see all ppc_plants in their station
       const ppcResult = await db.query(
-        `SELECT id AS plant_id, plant_name, capacity_mw, status
+        `SELECT id AS plant_id, plant_name, capacity_mw
          FROM ppc_plants
          WHERE pooling_station_id = $1
          ORDER BY plant_name`,

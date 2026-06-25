@@ -7,13 +7,13 @@ const { requireRole } = require('../middleware/roleMiddleware');
 // All routes require authentication
 router.use(authenticateToken);
 
-// Read routes (admin + user)
-router.get('/', requireRole('admin', 'user'), controller.getAllPpcPlants);
-router.get('/:id', requireRole('admin', 'user'), controller.getPpcPlantById);
+// Read routes (admin + pooling_station + user)
+router.get('/', requireRole('admin', 'pooling_station', 'user'), controller.getAllPpcPlants);
+router.get('/:id', requireRole('admin', 'pooling_station', 'user'), controller.getPpcPlantById);
 
-// Admin-only write operations
-router.post('/', requireRole('admin'), controller.createPpcPlant);
-router.put('/:id', requireRole('admin'), controller.updatePpcPlant);
+// Write operations
+router.post('/', requireRole('admin', 'user'), controller.createPpcPlant);
+router.put('/:id', requireRole('admin', 'pooling_station', 'user'), controller.updatePpcPlant);
 router.delete('/:id', requireRole('admin'), controller.deletePpcPlant);
 
 module.exports = router;

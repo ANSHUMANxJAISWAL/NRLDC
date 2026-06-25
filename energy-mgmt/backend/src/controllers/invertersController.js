@@ -65,11 +65,6 @@ const getInverters = async (req, res) => {
       }
     }
 
-    // 3. Status Filter
-    if (status && status !== 'All') {
-      queryParams.push(status);
-      whereClauses.push(`i.status = $${queryParams.length}`);
-    }
 
     // 3b. Device Type Filter
     if (type && type !== '' && type !== 'All') {
