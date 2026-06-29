@@ -45,22 +45,36 @@ const getPoolingStationById = async (req, res) => {
 
     const plantsResult = await db.query(
       `SELECT
-        pw.id,
-        pw.name AS plant_name,
-        pw.name,
-        pw.capacity_mw,
-        pw.owner,
-        pw.company_group,
-        pw.location,
-        pw.commissioned_date,
-        pw.pooling_station_id,
+        pp.id,
+        pp.plant_name,
+        pp.capacity_mw,
+        pp.owner,
         pp.wbes_acronym,
         pp.evacuating_line,
-        pp.ppc_oem
-       FROM power_plants pw
-       LEFT JOIN ppc_plants pp ON pw.id = pp.power_plant_id
-       WHERE pw.pooling_station_id = $1
-       ORDER BY pw.name`,
+        pp.poi,
+        pp.ppc_oem,
+        pp.ppc_mode_of_control,
+        pp.ppc_reference_point,
+        pp.ppc_reference_voltage_kv,
+        pp.ppc_voltage_deadband_pct,
+        pp.ppc_voltage_droop_pct,
+        pp.max_reactive_power_injection_mvar,
+        pp.max_reactive_power_absorption_mvar,
+        pp.ppc_comm_time_ms,
+        pp.ppc_sampling_time_ms,
+        pp.ppc_total_exec_time_ms,
+        pp.freq_control_mode,
+        pp.freq_deadband,
+        pp.freq_droop_pct,
+        pp.power_reduction_at_50_3hz,
+        pp.power_plant_id,
+        pw.name AS linked_plant_name,
+        ps.name AS pooling_station_name
+       FROM ppc_plants pp
+       LEFT JOIN power_plants pw ON pw.id = pp.power_plant_id
+       LEFT JOIN pooling_stations ps ON ps.id = pp.pooling_station_id
+       WHERE pp.pooling_station_id = $1
+       ORDER BY pp.plant_name`,
       [id]
     );
 
