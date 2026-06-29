@@ -144,8 +144,12 @@ const AdminDashboard = () => {
         setUsers(uData.users);
         setPlants(pData.plants);
       } else if (activeTab === 'pooling-stations') {
-        const psData = await poolingStationsAPI.getAll();
+        const [psData, plantsData] = await Promise.all([
+          poolingStationsAPI.getAll(),
+          plantsAPI.getAll().catch(() => ({ plants: [] }))
+        ]);
         setPoolingStations(psData.poolingStations);
+        setPlants(plantsData.plants || []);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -228,6 +232,7 @@ const AdminDashboard = () => {
         // If this was triggered from the permissions panel, auto-grant R+W and refresh panel
         if (permPanelContext && createResult.plant?.id) {
           const newPlantId = createResult.plant.id;
+          const newPlantCompany = createResult.plant.company_group || '';
           await permissionsAPI.grant({ user_id: permPanelContext.userId, plant_id: newPlantId, can_read: true, can_write: true });
           // Refresh the permissions panel with updated plants
           const [allPlantsResult, userPermsResult] = await Promise.all([
@@ -236,7 +241,8 @@ const AdminDashboard = () => {
           ]);
           const updatedAllPlants = allPlantsResult.plants;
           const updatedPerms = userPermsResult.permissions;
-          const filteredPlants = updatedAllPlants.filter(p => p.company_group === permPanelContext.companyGroup);
+          const targetGroup = permPanelContext.companyGroup || newPlantCompany;
+          const filteredPlants = updatedAllPlants.filter(p => p.company_group === targetGroup);
           const updatedMap = filteredPlants.map(p => {
             const matchingPerm = updatedPerms.find(up => up.plant_id === p.id);
             return {
@@ -251,6 +257,7 @@ const AdminDashboard = () => {
             ...prev,
             allPlants: updatedAllPlants,
             userPerms: updatedMap,
+            selectedCompanyGroup: targetGroup,
           }));
           setPermPanelContext(null);
         }
@@ -445,6 +452,7 @@ const AdminDashboard = () => {
     const formData = new FormData(e.target);
     const ppcData = {
       pooling_station_id: ppcModal.stationId,
+      power_plant_id: formData.get('power_plant_id') ? parseInt(formData.get('power_plant_id'), 10) : null,
       plant_name: formData.get('plant_name'),
       wbes_acronym: formData.get('wbes_acronym') || null,
       capacity_mw: formData.get('capacity_mw') ? parseFloat(formData.get('capacity_mw')) : null,
@@ -540,8 +548,8 @@ const AdminDashboard = () => {
         detectedCompany = matchedPlant?.company_group || '';
       }
 
-      // No fallback to first company — only show plants the user is actually linked to
-      const activeGroup = detectedCompany;
+      // Fallback to first company group if new user has no company permissions yet
+      const activeGroup = detectedCompany || (allCompanyGroups.length > 0 ? allCompanyGroups[0] : '');
 
       // Filter plants to only that company group (empty string → no plants shown)
       const filteredPlants = activeGroup
@@ -564,6 +572,7 @@ const AdminDashboard = () => {
         isOpen: true,
         targetUser: u,
         userPerms: initialMap,
+        rawUserPerms: uPerms,
         allPlants: plantsList,
         allCompanyGroups,
         selectedCompanyGroup: activeGroup,
@@ -577,8 +586,17 @@ const AdminDashboard = () => {
   const handleChangePermCompany = (newGroup) => {
     setPermPanel(prev => {
       const filteredPlants = prev.allPlants.filter(p => p.company_group === newGroup);
-      // Rebuild the perm map — preserve any already-set toggles for plants in this group
       const newPerms = filteredPlants.map(p => {
+        const matchingRaw = prev.rawUserPerms?.find(up => up.plant_id === p.id);
+        if (matchingRaw) {
+          return {
+            plantId: p.id,
+            plantName: p.name,
+            companyGroup: p.company_group,
+            canRead: matchingRaw.can_read,
+            canWrite: matchingRaw.can_write,
+          };
+        }
         const existing = prev.userPerms.find(up => up.plantId === p.id);
         return {
           plantId: p.id,
@@ -598,7 +616,6 @@ const AdminDashboard = () => {
         if (up.plantId === plantId) {
           const updatedVal = !up[field];
           const updatedObj = { ...up, [field]: updatedVal };
-          // Enforce: write permission requires read permission
           if (field === 'canWrite' && updatedVal) {
             updatedObj.canRead = true;
           }
@@ -609,7 +626,26 @@ const AdminDashboard = () => {
         }
         return up;
       });
-      return { ...prev, userPerms: updatedPerms };
+
+      const updatedRawPerms = [...(prev.rawUserPerms || [])];
+      const matchIdx = updatedRawPerms.findIndex(rp => rp.plant_id === plantId);
+      const matching = updatedPerms.find(up => up.plantId === plantId);
+      
+      if (matchIdx > -1) {
+        updatedRawPerms[matchIdx] = {
+          ...updatedRawPerms[matchIdx],
+          can_read: matching.canRead,
+          can_write: matching.canWrite,
+        };
+      } else {
+        updatedRawPerms.push({
+          plant_id: plantId,
+          can_read: matching.canRead,
+          can_write: matching.canWrite,
+        });
+      }
+
+      return { ...prev, userPerms: updatedPerms, rawUserPerms: updatedRawPerms };
     });
   };
 
@@ -2303,6 +2339,19 @@ const AdminDashboard = () => {
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
                   </div>
                   <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Link to Parent Power Plant</label>
+                    <select
+                      name="power_plant_id"
+                      defaultValue={ppcModal.data?.power_plant_id || ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">-- None / Select Plant --</option>
+                      {plants.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.capacity_mw} MW)</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">WBES Acronym</label>
                     <input type="text" name="wbes_acronym"
                       defaultValue={ppcModal.data?.wbes_acronym || ''}
@@ -2533,16 +2582,23 @@ const AdminDashboard = () => {
               </button>
             </div>
 
-            {/* Company Label (static — no switcher) */}
-            {permPanel.selectedCompanyGroup && (
-              <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/60 flex-shrink-0 flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                <span className="text-xs font-bold text-slate-700">{permPanel.selectedCompanyGroup}</span>
-                <span className="text-xs text-slate-400 font-medium ml-auto">{permPanel.userPerms.length} plant(s)</span>
-              </div>
-            )}
+            {/* Company Group Switcher */}
+            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/60 flex-shrink-0 flex items-center gap-2">
+              <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <select
+                value={permPanel.selectedCompanyGroup || ''}
+                onChange={(e) => handleChangePermCompany(e.target.value)}
+                className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-rose-500 cursor-pointer"
+              >
+                <option value="">-- Select Company Group --</option>
+                {permPanel.allCompanyGroups.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400 font-semibold ml-auto">{permPanel.userPerms.length} plant(s)</span>
+            </div>
 
             {/* Plant Permission Rows */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
