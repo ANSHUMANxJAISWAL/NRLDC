@@ -7,10 +7,9 @@ import { useAuth } from '../context/AuthContext';
  *
  * Props:
  *   adminOnly       — only 'admin' role allowed
- *   stationOnly     — only 'pooling_station' or 'admin' allowed
  *   allowedRoles    — array of roles that are allowed (overrides above flags)
  */
-const ProtectedRoute = ({ children, adminOnly = false, stationOnly = false, allowedRoles }) => {
+const ProtectedRoute = ({ children, adminOnly = false, allowedRoles }) => {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   // Show a clean loading state while fetching profile on mount
@@ -35,7 +34,6 @@ const ProtectedRoute = ({ children, adminOnly = false, stationOnly = false, allo
     if (!allowedRoles.includes(role)) {
       // Redirect to appropriate dashboard
       if (role === 'admin') return <Navigate to="/admin/dashboard" replace />;
-      if (role === 'pooling_station') return <Navigate to="/station-dashboard" replace />;
       return <Navigate to="/dashboard" replace />;
     }
     return children;
@@ -44,13 +42,6 @@ const ProtectedRoute = ({ children, adminOnly = false, stationOnly = false, allo
   // Admin-only check
   if (adminOnly && role !== 'admin') {
     console.warn(`User ${user?.username} (role: ${role}) attempted to access admin-only area.`);
-    if (role === 'pooling_station') return <Navigate to="/station-dashboard" replace />;
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Station-only check (pooling_station or admin)
-  if (stationOnly && role !== 'pooling_station' && role !== 'admin') {
-    console.warn(`User ${user?.username} (role: ${role}) attempted to access station-only area.`);
     return <Navigate to="/dashboard" replace />;
   }
 

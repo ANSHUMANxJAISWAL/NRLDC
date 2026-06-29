@@ -15,7 +15,7 @@ const getUserPermissions = async (req, res) => {
     return res.status(200).json({ permissions: result.rows });
   } catch (err) {
     console.error('Error fetching user permissions:', err);
-    return res.status(500).json({ error: 'Internal server error fetching permissions' });
+    return res.status(500).json({ error: `Internal server error fetching permissions: ${err?.message || ''}` });
   }
 };
 
@@ -49,7 +49,7 @@ const grantPermission = async (req, res) => {
     });
   } catch (err) {
     console.error('Error granting permission:', err);
-    return res.status(500).json({ error: 'Internal server error granting plant permissions' });
+    return res.status(500).json({ error: `Internal server error granting plant permissions: ${err?.message || ''}` });
   }
 };
 
@@ -82,7 +82,7 @@ const updatePermission = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating permission details:', err);
-    return res.status(500).json({ error: 'Internal server error updating permission mapping' });
+    return res.status(500).json({ error: `Internal server error updating permission mapping: ${err?.message || ''}` });
   }
 };
 
@@ -101,7 +101,7 @@ const revokePermission = async (req, res) => {
     return res.status(200).json({ message: 'Permission mapping revoked successfully' });
   } catch (err) {
     console.error('Error revoking permission:', err);
-    return res.status(500).json({ error: 'Internal server error revoking plant permissions' });
+    return res.status(500).json({ error: `Internal server error revoking plant permissions: ${err?.message || ''}` });
   }
 };
 
@@ -144,7 +144,7 @@ const saveBatchPermissions = async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error in batch permissions transaction:', err);
-    return res.status(500).json({ error: 'Failed to batch save user permissions' });
+    return res.status(500).json({ error: `Failed to batch save user permissions: ${err?.message || ''}` });
   } finally {
     client.release();
   }

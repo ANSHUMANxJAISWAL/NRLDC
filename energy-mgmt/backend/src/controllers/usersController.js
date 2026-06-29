@@ -5,17 +5,17 @@ const db = require('../config/db');
 const getAllUsers = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.id, u.username, u.email, u.role, u.created_at, 
+      `SELECT u.id, u.username, u.email, u.role, u.created_at,
               COUNT(p.id)::int as plant_count 
        FROM users u 
        LEFT JOIN user_plant_permissions p ON u.id = p.user_id 
-       GROUP BY u.id 
+       GROUP BY u.id
        ORDER BY u.id DESC`
     );
     return res.status(200).json({ users: result.rows });
   } catch (err) {
     console.error('Error fetching users:', err);
-    return res.status(500).json({ error: 'Internal server error fetching users list' });
+    return res.status(500).json({ error: `Internal server error fetching users list: ${err?.message || ''}` });
   }
 };
 
@@ -25,7 +25,9 @@ const getUserById = async (req, res) => {
 
   try {
     const userResult = await db.query(
-      'SELECT id, username, email, role, created_at FROM users WHERE id = $1',
+      `SELECT u.id, u.username, u.email, u.role, u.created_at
+       FROM users u
+       WHERE u.id = $1`,
       [id]
     );
 
@@ -49,7 +51,7 @@ const getUserById = async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching user profile details:', err);
-    return res.status(500).json({ error: 'Internal server error fetching user details' });
+    return res.status(500).json({ error: `Internal server error fetching user details: ${err?.message || ''}` });
   }
 };
 
@@ -87,7 +89,7 @@ const createUser = async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating user:', err);
-    return res.status(500).json({ error: 'Internal server error creating user account' });
+    return res.status(500).json({ error: `Internal server error creating user account: ${err?.message || ''}` });
   }
 };
 
@@ -130,7 +132,7 @@ const updateUser = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating user:', err);
-    return res.status(500).json({ error: 'Internal server error updating user account' });
+    return res.status(500).json({ error: `Internal server error updating user account: ${err?.message || ''}` });
   }
 };
 
@@ -149,7 +151,7 @@ const deleteUser = async (req, res) => {
     return res.status(200).json({ message: 'User account and associated permissions deleted successfully' });
   } catch (err) {
     console.error('Error deleting user:', err);
-    return res.status(500).json({ error: 'Internal server error deleting user account' });
+    return res.status(500).json({ error: `Internal server error deleting user account: ${err?.message || ''}` });
   }
 };
 
@@ -179,7 +181,7 @@ const resetPassword = async (req, res) => {
     return res.status(200).json({ message: 'User password reset successfully' });
   } catch (err) {
     console.error('Error resetting user password:', err);
-    return res.status(500).json({ error: 'Internal server error resetting user password' });
+    return res.status(500).json({ error: `Internal server error resetting user password: ${err?.message || ''}` });
   }
 };
 

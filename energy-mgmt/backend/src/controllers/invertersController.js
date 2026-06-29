@@ -115,7 +115,7 @@ const getInverters = async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching inverters:', err);
-    return res.status(500).json({ error: 'Internal server error fetching inverters' });
+    return res.status(500).json({ error: `Internal server error fetching inverters: ${err?.message || ''}` });
   }
 };
 
@@ -148,7 +148,7 @@ const getInverterById = async (req, res) => {
     return res.status(200).json({ inverter });
   } catch (err) {
     console.error('Error fetching inverter detail:', err);
-    return res.status(500).json({ error: 'Internal server error fetching inverter details' });
+    return res.status(500).json({ error: `Internal server error fetching inverter details: ${err?.message || ''}` });
   }
 };
 
@@ -228,7 +228,7 @@ const createInverter = async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating inverter:', err);
-    return res.status(500).json({ error: 'Internal server error creating inverter' });
+    return res.status(500).json({ error: `Internal server error creating inverter: ${err?.message || ''}` });
   }
 };
 
@@ -349,7 +349,7 @@ const updateInverter = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating inverter:', err);
-    return res.status(500).json({ error: 'Internal server error updating inverter' });
+    return res.status(500).json({ error: `Internal server error updating inverter: ${err?.message || ''}` });
   }
 };
 
@@ -381,7 +381,7 @@ const deleteInverter = async (req, res) => {
     return res.status(200).json({ message: 'Inverter group deleted successfully' });
   } catch (err) {
     console.error('Error deleting inverter:', err);
-    return res.status(500).json({ error: 'Internal server error deleting inverter' });
+    return res.status(500).json({ error: `Internal server error deleting inverter: ${err?.message || ''}` });
   }
 };
 
@@ -446,7 +446,7 @@ const exportInvertersCSV = async (req, res) => {
     return res.status(200).send(csvContent);
   } catch (err) {
     console.error('Error exporting CSV:', err);
-    return res.status(500).json({ error: 'Internal server error exporting CSV file' });
+    return res.status(500).json({ error: `Internal server error exporting CSV file: ${err?.message || ''}` });
   }
 };
 

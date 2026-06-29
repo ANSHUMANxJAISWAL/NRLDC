@@ -1,11 +1,10 @@
 /**
- * ppcSeed.js — Seeds pooling_stations, ppc_plants, and pooling_station users.
+ * ppcSeed.js — Seeds pooling_stations and ppc_plants.
  * Run AFTER seedRealData.js (which resets the schema and seeds power_plants).
  *
  * Usage: node ppcSeed.js
  */
 
-const bcrypt = require('bcryptjs');
 const { Client } = require('pg');
 const { poolingStations, ppcPlants } = require('./ppcData');
 
@@ -37,26 +36,19 @@ const main = async () => {
     // --- 1. Build station name → id map ---
     const stationIdMap = {};
 
-    console.log(`\nInserting ${poolingStations.length} pooling stations...`);
-    const salt = await bcrypt.genSalt(10);
-
     for (const station of poolingStations) {
-      const passwordHash = await bcrypt.hash(station.password, salt);
-
       // Insert pooling station
       const stationResult = await client.query(
-        `INSERT INTO pooling_stations (name, login_id, password_hash, total_capacity_mw)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO pooling_stations (name, total_capacity_mw)
+         VALUES ($1, $2)
          ON CONFLICT (name) DO UPDATE SET total_capacity_mw = EXCLUDED.total_capacity_mw
          RETURNING id`,
-        [station.name, station.login_id, passwordHash, station.total_capacity_mw]
+        [station.name, station.total_capacity_mw]
       );
       const stationId = stationResult.rows[0].id;
       stationIdMap[station.name] = stationId;
 
       console.log(`  ✓ Pooling Station: "${station.name}" → id=${stationId}`);
-
-
     }
 
     console.log('\nPooling stations and users seeded successfully.');
@@ -83,8 +75,11 @@ const main = async () => {
           .join(' ');
 
         const matchResult = await client.query(
-          `SELECT id FROM power_plants WHERE name ILIKE '%' || $1 || '%' LIMIT 1`,
-          [keyWords]
+          `SELECT id FROM power_plants 
+           WHERE name ILIKE '%' || $2 || '%' OR name ILIKE $1
+           ORDER BY CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END, id 
+           LIMIT 1`,
+          [plant.plant_name, keyWords]
         );
         if (matchResult.rows.length > 0) {
           powerPlantId = matchResult.rows[0].id;
@@ -149,12 +144,7 @@ const main = async () => {
     console.log(`  Unmatched (null): ${unmatched}`);
     console.log('====================================================');
 
-    // Print login credentials summary
-    console.log('\n--- Pooling Station Login Credentials ---');
-    for (const station of poolingStations) {
-      console.log(`  ${station.login_id}  |  Password: ${station.password}`);
-    }
-    console.log('-----------------------------------------\n');
+
 
   } catch (err) {
     console.error('Error during PPC seeding:', err);

@@ -18,8 +18,6 @@ CREATE TYPE user_role AS ENUM ('admin', 'user');
 CREATE TABLE pooling_stations (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL UNIQUE,
-  login_id VARCHAR(100) NOT NULL UNIQUE,        -- e.g. bikanerpg@energymgmt
-  password_hash TEXT NOT NULL,
   total_capacity_mw NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -31,7 +29,6 @@ CREATE TABLE users (
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role user_role DEFAULT 'user' NOT NULL,
-    pooling_station_id INT REFERENCES pooling_stations(id) ON DELETE SET NULL,
     two_factor_code VARCHAR(6),
     two_factor_expires TIMESTAMP WITH TIME ZONE,
     reset_code VARCHAR(6),
@@ -46,6 +43,7 @@ CREATE TABLE power_plants (
     owner VARCHAR(100),
     company_group VARCHAR(100),
     pooling_station VARCHAR(255),
+    pooling_station_id INTEGER REFERENCES pooling_stations(id) ON DELETE SET NULL,
     capacity_mw NUMERIC(10, 3) NOT NULL,
     commissioned_date DATE, -- Nullable to handle missing dates in real data
     location VARCHAR(255) NOT NULL,

@@ -16,9 +16,6 @@ const initialState = {
   token: localStorage.getItem('token'),
   isLoading: true,
   isAuthenticated: false,
-  // Pooling station specific fields
-  poolingStationId: null,
-  stationName: null,
 };
 
 const authReducer = (state, action) => {
@@ -29,8 +26,6 @@ const authReducer = (state, action) => {
         user: action.payload.user,
         isAuthenticated: true,
         isLoading: false,
-        poolingStationId: action.payload.user?.pooling_station_id || null,
-        stationName: action.payload.user?.station_name || null,
       };
     case 'LOGIN':
       localStorage.setItem('token', action.payload.token);
@@ -40,8 +35,6 @@ const authReducer = (state, action) => {
         user: action.payload.user,
         isAuthenticated: true,
         isLoading: false,
-        poolingStationId: action.payload.user?.pooling_station_id || null,
-        stationName: action.payload.user?.station_name || null,
       };
     case 'LOGOUT':
       localStorage.removeItem('token');
@@ -51,8 +44,6 @@ const authReducer = (state, action) => {
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        poolingStationId: null,
-        stationName: null,
       };
     case 'SET_LOADING':
       return {

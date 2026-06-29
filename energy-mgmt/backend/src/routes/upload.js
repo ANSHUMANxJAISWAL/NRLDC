@@ -106,7 +106,7 @@ router.get('/download/:filename', (req, res) => {
     if (err) {
       console.error('File download error:', err);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Failed to download file' });
+        res.status(500).json({ error: `Failed to download file: ${err?.message || ''}` });
       }
     }
   });
@@ -137,7 +137,7 @@ router.delete('/:filename', authenticateToken, (req, res) => {
       return res.status(200).json({ message: 'File deleted successfully' });
     } catch (err) {
       console.error('Error deleting file:', err);
-      return res.status(500).json({ error: 'Failed to delete file from local storage' });
+      return res.status(500).json({ error: `Failed to delete file from local storage: ${err?.message || ''}` });
     }
   } else {
     // If the file is not on disk (e.g. legacy database reference), return success to allow clearing the DB reference anyway

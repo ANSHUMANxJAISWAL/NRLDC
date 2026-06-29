@@ -6,11 +6,7 @@ const db = require('../config/db');
 const getAllPpcPlants = async (req, res) => {
   const { pooling_station_id, power_plant_id, search, status } = req.query;
 
-  // If pooling_station role, enforce they can only see their own station
   let stationId = pooling_station_id;
-  if (req.user.role === 'pooling_station') {
-    stationId = req.user.pooling_station_id;
-  }
 
   try {
     let conditions = [];
@@ -48,7 +44,7 @@ const getAllPpcPlants = async (req, res) => {
     return res.status(200).json({ ppcPlants: result.rows });
   } catch (err) {
     console.error('Error fetching PPC plants:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -73,17 +69,10 @@ const getPpcPlantById = async (req, res) => {
       return res.status(404).json({ error: 'PPC plant not found' });
     }
 
-    // Pooling station users can only see plants in their station
-    if (req.user.role === 'pooling_station') {
-      if (result.rows[0].pooling_station_id !== req.user.pooling_station_id) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-    }
-
     return res.status(200).json({ plant: result.rows[0] });
   } catch (err) {
     console.error('Error fetching PPC plant:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -156,7 +145,7 @@ const createPpcPlant = async (req, res) => {
     return res.status(201).json({ plant: result.rows[0] });
   } catch (err) {
     console.error('Error creating PPC plant:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -174,12 +163,7 @@ const updatePpcPlant = async (req, res) => {
 
     const oldPpc = check.rows[0];
 
-    // Enforce pooling station role boundaries
-    if (req.user.role === 'pooling_station') {
-      if (oldPpc.pooling_station_id !== req.user.pooling_station_id) {
-        return res.status(403).json({ error: 'Access denied: You cannot edit plants in another pooling station' });
-      }
-    } else if (req.user.role === 'user') {
+    if (req.user.role === 'user') {
       // Check if regular user has write permission for this plant
       const permCheck = await db.query(
         'SELECT can_write FROM user_plant_permissions WHERE user_id = $1 AND plant_id = $2',
@@ -284,7 +268,7 @@ const updatePpcPlant = async (req, res) => {
     return res.status(200).json({ plant: result.rows[0] });
   } catch (err) {
     console.error('Error updating PPC plant:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -313,7 +297,7 @@ const deletePpcPlant = async (req, res) => {
     return res.status(200).json({ message: 'PPC plant deleted successfully' });
   } catch (err) {
     console.error('Error deleting PPC plant:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 

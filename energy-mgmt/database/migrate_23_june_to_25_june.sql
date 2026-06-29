@@ -18,3 +18,4 @@ DROP TYPE IF EXISTS plant_status;
 
 -- 6. Drop enum type inverter_status if it exists
 DROP TYPE IF EXISTS inverter_status;
+

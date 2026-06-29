@@ -13,7 +13,7 @@ const getSystemLogs = async (req, res) => {
     return res.status(200).json({ logs: result.rows });
   } catch (err) {
     console.error('Error fetching system logs:', err);
-    return res.status(500).json({ error: 'Internal server error fetching system logs' });
+    return res.status(500).json({ error: `Internal server error fetching system logs: ${err?.message || ''}` });
   }
 };
 

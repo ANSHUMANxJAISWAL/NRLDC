@@ -101,37 +101,43 @@ const AdminDashboard = () => {
         setPlants(plantsData.plants);
         setInverters(invsData.data);
       } else if (activeTab === 'plants') {
-        const [plantsData, uData, invsData] = await Promise.all([
+        const [plantsData, uData, invsData, psData] = await Promise.all([
           plantsAPI.getAll(),
           usersAPI.getAll().catch(() => ({ users: [] })),
-          invertersAPI.getAll({ limit: 1000 }).catch(() => ({ data: [] }))
+          invertersAPI.getAll({ limit: 1000 }).catch(() => ({ data: [] })),
+          poolingStationsAPI.getAll().catch(() => ({ poolingStations: [] }))
         ]);
         setPlants(plantsData.plants);
         setUsers(uData.users || []);
         setInverters(invsData.data || []);
+        setPoolingStations(psData.poolingStations || []);
       } else if (activeTab === 'inverters') {
-        const data = await invertersAPI.getAll({
-          plant_id: invPlantFilter,
-          type: invTypeFilter !== 'All' ? invTypeFilter : '',
-          search: invSearch,
-          sort: invSort,
-          order: invOrder,
-          page: invPage,
-          limit: invLimit
-        });
+        const [data, pData, psData] = await Promise.all([
+          invertersAPI.getAll({
+            plant_id: invPlantFilter,
+            type: invTypeFilter !== 'All' ? invTypeFilter : '',
+            search: invSearch,
+            sort: invSort,
+            order: invOrder,
+            page: invPage,
+            limit: invLimit
+          }),
+          plantsAPI.getAll().catch(() => ({ plants: [] })),
+          poolingStationsAPI.getAll().catch(() => ({ poolingStations: [] }))
+        ]);
         setInverters(data.data);
         setInvTotalPages(data.totalPages);
-
-        // Fetch plants list for the filter dropdown
-        const pData = await plantsAPI.getAll();
-        setPlants(pData.plants);
+        setPlants(pData.plants || []);
+        setPoolingStations(psData.poolingStations || []);
       } else if (activeTab === 'users') {
-        const [uData, pData] = await Promise.all([
+        const [uData, pData, psData] = await Promise.all([
           usersAPI.getAll(),
-          plantsAPI.getAll().catch(() => ({ plants: [] }))
+          plantsAPI.getAll().catch(() => ({ plants: [] })),
+          poolingStationsAPI.getAll().catch(() => ({ poolingStations: [] }))
         ]);
         setUsers(uData.users);
         setPlants(pData.plants || []);
+        setPoolingStations(psData.poolingStations || []);
       } else if (activeTab === 'permissions') {
         const uData = await usersAPI.getAll();
         const pData = await plantsAPI.getAll();
@@ -198,6 +204,10 @@ const AdminDashboard = () => {
   const handleSavePlant = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const selectedStationName = formData.get('pooling_station') || '';
+    const matchingStation = poolingStations.find(s => s.name === selectedStationName);
+    const pooling_station_id = matchingStation ? matchingStation.id : null;
+
     const plantData = {
       name: formData.get('name'),
       location: formData.get('location'),
@@ -205,7 +215,8 @@ const AdminDashboard = () => {
       commissioned_date: formData.get('commissioned_date') || null,
       owner: formData.get('owner') || null,
       company_group: formData.get('company_group') || null,
-      pooling_station: formData.get('pooling_station') || null,
+      pooling_station: selectedStationName || null,
+      pooling_station_id,
     };
 
     try {
@@ -404,6 +415,81 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSaveStation = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const stationData = {
+      name: formData.get('name'),
+      total_capacity_mw: formData.get('total_capacity_mw') ? parseFloat(formData.get('total_capacity_mw')) : null,
+    };
+
+    try {
+      if (stationModal.type === 'add') {
+        await poolingStationsAPI.create(stationData);
+        showToast('Pooling station created successfully.', 'success');
+        logAction(`Created pooling station "${stationData.name}".`);
+      } else {
+        await poolingStationsAPI.update(stationModal.data.id, stationData);
+        showToast('Pooling station updated successfully.', 'success');
+        logAction(`Updated pooling station "${stationData.name}".`);
+      }
+      setStationModal({ isOpen: false, type: 'add', data: null });
+      fetchData();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to save pooling station.', 'error');
+    }
+  };
+
+  const handleSavePpcPlant = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const ppcData = {
+      pooling_station_id: ppcModal.stationId,
+      plant_name: formData.get('plant_name'),
+      wbes_acronym: formData.get('wbes_acronym') || null,
+      capacity_mw: formData.get('capacity_mw') ? parseFloat(formData.get('capacity_mw')) : null,
+      evacuating_line: formData.get('evacuating_line') || null,
+      poi: formData.get('poi') || null,
+      owner: formData.get('owner') || null,
+      ppc_oem: formData.get('ppc_oem') || null,
+      ppc_mode_of_control: formData.get('ppc_mode_of_control') || null,
+      ppc_reference_point: formData.get('ppc_reference_point') || null,
+      ppc_reference_voltage_kv: formData.get('ppc_reference_voltage_kv') ? parseFloat(formData.get('ppc_reference_voltage_kv')) : null,
+      ppc_voltage_deadband_pct: formData.get('ppc_voltage_deadband_pct') ? parseFloat(formData.get('ppc_voltage_deadband_pct')) : null,
+      ppc_voltage_droop_pct: formData.get('ppc_voltage_droop_pct') ? parseFloat(formData.get('ppc_voltage_droop_pct')) : null,
+      max_reactive_power_injection_mvar: formData.get('max_reactive_power_injection_mvar') ? parseFloat(formData.get('max_reactive_power_injection_mvar')) : null,
+      max_reactive_power_absorption_mvar: formData.get('max_reactive_power_absorption_mvar') ? parseFloat(formData.get('max_reactive_power_absorption_mvar')) : null,
+      ppc_comm_time_ms: formData.get('ppc_comm_time_ms') ? parseFloat(formData.get('ppc_comm_time_ms')) : null,
+      ppc_sampling_time_ms: formData.get('ppc_sampling_time_ms') ? parseFloat(formData.get('ppc_sampling_time_ms')) : null,
+      ppc_total_exec_time_ms: formData.get('ppc_total_exec_time_ms') ? parseFloat(formData.get('ppc_total_exec_time_ms')) : null,
+      freq_control_mode: formData.get('freq_control_mode') || null,
+      freq_deadband: formData.get('freq_deadband') ? parseFloat(formData.get('freq_deadband')) : null,
+      freq_droop_pct: formData.get('freq_droop_pct') ? parseFloat(formData.get('freq_droop_pct')) : null,
+      power_reduction_at_50_3hz: formData.get('power_reduction_at_50_3hz') || null,
+    };
+
+    try {
+      if (ppcModal.type === 'add') {
+        await ppcPlantsAPI.create(ppcData);
+        showToast('RE Plant added successfully.', 'success');
+        logAction(`Added RE plant "${ppcData.plant_name}" to station ID ${ppcModal.stationId}.`);
+      } else {
+        await ppcPlantsAPI.update(ppcModal.data.id, ppcData);
+        showToast('RE Plant updated successfully.', 'success');
+        logAction(`Updated RE plant "${ppcData.plant_name}".`);
+      }
+      setPpcModal({ isOpen: false, type: 'add', data: null, stationId: null });
+      // Refresh the station drill-down plants list
+      if (selectedStation) {
+        const d = await poolingStationsAPI.getById(selectedStation.id);
+        setStationPlants(d.plants);
+      }
+      fetchData();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to save RE plant.', 'error');
+    }
+  };
+
   const handleResetPassword = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -561,8 +647,8 @@ const AdminDashboard = () => {
         logAction(`Deleted pooling station ID ${id}.`);
       } else if (type === 'ppc-plant') {
         await ppcPlantsAPI.delete(id);
-        showToast('PPC plant deleted.', 'success');
-        logAction(`Deleted PPC plant ID ${id}.`);
+        showToast('RE plant deleted.', 'success');
+        logAction(`Deleted RE plant ID ${id}.`);
         // Refresh the drill-down panel
         if (selectedStation) {
           const d = await poolingStationsAPI.getById(selectedStation.id);
@@ -1165,7 +1251,7 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-800">Pooling Stations</h2>
-                  <p className="text-sm text-slate-500 font-medium">220kV/400kV grid substations with PPC plant registry</p>
+                  <p className="text-sm text-slate-500 font-medium">220kV/400kV grid substations with RE plant registry</p>
                 </div>
                 <button
                   onClick={() => setStationModal({ isOpen: true, type: 'add', data: null })}
@@ -1182,7 +1268,7 @@ const AdminDashboard = () => {
                   <div className="text-3xl font-extrabold text-slate-800 mt-2">{poolingStations.length}</div>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total PPC Plants</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total RE Plants</div>
                   <div className="text-3xl font-extrabold text-teal-700 mt-2">{poolingStations.reduce((a, s) => a + (s.plant_count || 0), 0)}</div>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
@@ -1199,15 +1285,14 @@ const AdminDashboard = () => {
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/40 text-xs text-slate-400 font-bold uppercase">
                           <th className="p-4">Station Name</th>
-                          <th className="p-4 text-center">PPC Plants</th>
+                          <th className="p-4 text-center">No. of RE Plants</th>
                           <th className="p-4">Total Capacity (MW)</th>
-                          <th className="p-4">Login ID</th>
                           <th className="p-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 text-sm">
                         {poolingStations.length === 0 ? (
-                          <tr><td colSpan={5} className="text-center py-10 text-slate-400 font-medium">No pooling stations found. Run <code className="bg-slate-100 px-1 rounded text-xs">node ppcSeed.js</code> to seed data.</td></tr>
+                          <tr><td colSpan={4} className="text-center py-10 text-slate-400 font-medium">No pooling stations found. Run <code className="bg-slate-100 px-1 rounded text-xs">node ppcSeed.js</code> to seed data.</td></tr>
                         ) : poolingStations.map(s => (
                           <tr key={s.id} className="hover:bg-slate-50/50">
                             <td className="p-4">
@@ -1228,7 +1313,6 @@ const AdminDashboard = () => {
                             </td>
                             <td className="p-4 text-center font-bold text-slate-700">{s.plant_count}</td>
                             <td className="p-4 font-bold text-emerald-700">{parseFloat(s.actual_capacity_mw || 0).toFixed(2)} MW</td>
-                            <td className="p-4 font-mono text-xs text-slate-500">{s.login_id}</td>
                             <td className="p-4 text-right">
                               <div className="flex justify-end gap-2">
                                 <button
@@ -1250,12 +1334,21 @@ const AdminDashboard = () => {
                                   title="Preview station dashboard"
                                 >Preview</button>
                                 <button
+                                  onClick={() => setStationModal({ isOpen: true, type: 'edit', data: s })}
+                                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all-300"
+                                  title="Edit Station"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                  </svg>
+                                </button>
+                                <button
                                   onClick={() => {
                                     setDeleteConfirm({
                                       isOpen: true,
                                       type: 'pooling-station',
                                       id: s.id,
-                                      message: `Delete pooling station "${s.name}"? All PPC plants under it will also be removed.`
+                                      message: `Delete pooling station "${s.name}"? All RE plants under it will also be removed.`
                                     });
                                   }}
                                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all-300"
@@ -1291,12 +1384,12 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-slate-400 font-medium">Click any row to expand full PPC detail</p>
+                    <p className="text-xs text-slate-400 font-medium">Click any row to expand full RE Plant detail</p>
                     <button
                       onClick={() => setPpcModal({ isOpen: true, type: 'add', data: null, stationId: selectedStation.id })}
                       className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm transition-all-300"
                     >
-                      Add PPC Plant
+                      Add RE Plant
                     </button>
                   </div>
 
@@ -1309,7 +1402,7 @@ const AdminDashboard = () => {
                             <th className="p-4">Evacuating Line</th>
                             <th className="p-4">MW</th>
                             <th className="p-4">Owner</th>
-                            <th className="p-4">PPC OEM</th>
+                            <th className="p-4">OEM</th>
                             <th className="p-4">Ref Voltage</th>
                             <th className="p-4 text-right">Actions</th>
                           </tr>
@@ -1318,7 +1411,7 @@ const AdminDashboard = () => {
                           {stationLoading ? (
                             <tr><td colSpan={7} className="py-10 text-center text-slate-400">Loading...</td></tr>
                           ) : stationPlants.length === 0 ? (
-                            <tr><td colSpan={7} className="py-10 text-center text-slate-400">No PPC plants in this station yet.</td></tr>
+                            <tr><td colSpan={7} className="py-10 text-center text-slate-400">No RE plants in this station yet.</td></tr>
                           ) : stationPlants.map(p => (
                             <tr
                               key={p.id}
@@ -1338,16 +1431,16 @@ const AdminDashboard = () => {
                                   <button
                                     onClick={() => setPpcModal({ isOpen: true, type: 'edit', data: p, stationId: selectedStation.id })}
                                     className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all-300"
-                                    title="Edit PPC Plant"
+                                    title="Edit RE Plant"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                     </svg>
                                   </button>
                                   <button
-                                    onClick={() => setDeleteConfirm({ isOpen: true, type: 'ppc-plant', id: p.id, message: `Delete PPC plant "${p.plant_name}"?` })}
+                                    onClick={() => setDeleteConfirm({ isOpen: true, type: 'ppc-plant', id: p.id, message: `Delete RE plant "${p.plant_name}"?` })}
                                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all-300"
-                                    title="Delete PPC Plant"
+                                    title="Delete RE Plant"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1689,111 +1782,133 @@ const AdminDashboard = () => {
             <h3 className="text-lg font-bold text-slate-800 mb-4 capitalize">
               {plantModal.type === 'add' ? 'Add Power Plant' : 'Edit Power Plant'}
             </h3>
-            <form onSubmit={handleSavePlant} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.name : ''}
-                    placeholder="e.g. Adani Solar Four"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Location</label>
-                  <input
-                    type="text"
-                    name="location"
-                    required
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.location : ''}
-                    placeholder="e.g. Bhadla(PG)"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Owner</label>
-                  <input
-                    type="text"
-                    name="owner"
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.owner : ''}
-                    placeholder="e.g. Adani"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Assign to User</label>
-                  <select
-                    name="company_group"
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.company_group : ''}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+            {poolingStations.length === 0 && plantModal.type === 'add' ? (
+              <div className="text-center py-6">
+                <span className="text-4xl">⚠️</span>
+                <p className="mt-4 text-slate-700 font-bold">
+                  No pooling stations are registered in the system.
+                </p>
+                <p className="text-xs text-slate-400 mt-1 mb-6">
+                  You must register a pooling station before you can create a power plant.
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlantModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
                   >
-                    <option value="">— Select User —</option>
-                    {users.filter(u => u.role === 'user').map(u => (
-                      <option key={u.id} value={u.username}>{u.username}</option>
-                    ))}
-                  </select>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlantModal({ isOpen: false, type: 'add', data: null });
+                      setActiveTab('pooling-stations');
+                      setStationModal({ isOpen: true, type: 'add', data: null });
+                    }}
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-rose-100"
+                  >
+                    Add Pooling Station
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
-                <input
-                  type="text"
-                  name="pooling_station"
-                  defaultValue={plantModal.type === 'edit' ? plantModal.data.pooling_station : ''}
-                  placeholder="e.g. Bhadla(PG)"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity (MW)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    name="capacity_mw"
-                    required
-                    defaultValue={plantModal.type === 'edit' ? plantModal.data.capacity_mw : ''}
-                    placeholder="150.00"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+            ) : (
+              <form onSubmit={handleSavePlant} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      defaultValue={plantModal.type === 'edit' ? plantModal.data.name : ''}
+                      placeholder="e.g. Bhadla Solar"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Location / Area</label>
+                    <input
+                      type="text"
+                      name="location"
+                      required
+                      defaultValue={plantModal.type === 'edit' ? plantModal.data.location : ''}
+                      placeholder="e.g. Jodhpur, Rajasthan"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
-                  <input
-                    type="date"
-                    name="commissioned_date"
-                    defaultValue={plantModal.type === 'edit' && plantModal.data.commissioned_date ? new Date(plantModal.data.commissioned_date).toISOString().split('T')[0] : ''}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Assign to User</label>
+                    <select
+                      name="company_group"
+                      defaultValue={plantModal.type === 'edit' ? plantModal.data.company_group : ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select User —</option>
+                      {users.filter(u => u.role === 'user').map(u => (
+                        <option key={u.id} value={u.username}>{u.username}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
+                    <select
+                      name="pooling_station"
+                      defaultValue={plantModal.type === 'edit' ? plantModal.data.pooling_station : ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select Pooling Station —</option>
+                      {poolingStations.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity (MW)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      name="capacity_mw"
+                      required
+                      defaultValue={plantModal.type === 'edit' ? plantModal.data.capacity_mw : ''}
+                      placeholder="150.00"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
+                    <input
+                      type="date"
+                      name="commissioned_date"
+                      defaultValue={plantModal.type === 'edit' && plantModal.data.commissioned_date ? new Date(plantModal.data.commissioned_date).toISOString().split('T')[0] : ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
 
-
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setPlantModal({ isOpen: false, type: 'add', data: null })}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
-                >
-                  {plantModal.type === 'add' ? 'Create Plant' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPlantModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
+                  >
+                    {plantModal.type === 'add' ? 'Create Plant' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -1805,177 +1920,227 @@ const AdminDashboard = () => {
             <h3 className="text-lg font-bold text-slate-800 mb-4 capitalize">
               {inverterModal.type === 'add' ? 'Register Inverter' : 'Edit Inverter'}
             </h3>
-            <form onSubmit={handleSaveInverter} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Power Plant Assignment</label>
-                {inverterModal.type === 'add' ? (
-                  <select
-                    name="plant_id"
-                    required
-                    defaultValue={inverterModal.data?.plant_id || ''}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+            {plants.length === 0 && inverterModal.type === 'add' ? (
+              <div className="text-center py-6">
+                <span className="text-4xl">⚠️</span>
+                <p className="mt-4 text-slate-700 font-bold">
+                  No power plants are registered in the system.
+                </p>
+                <p className="text-xs text-slate-400 mt-1 mb-6">
+                  You must create a power plant before you can assign inverters to it.
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setInverterModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
                   >
-                    <option value="">Select Target Grid Plant...</option>
-                    {plants.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    disabled
-                    value={inverterModal.data.plant_name}
-                    className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-400"
-                  />
-                )}
-                {inverterModal.type === 'edit' && (
-                  <input type="hidden" name="plant_id" value={inverterModal.data.plant_id} />
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Make (Manufacturer)</label>
-                  <input
-                    type="text"
-                    name="make"
-                    required
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.make : ''}
-                    placeholder="HUAWEI"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Model Name</label>
-                  <input
-                    type="text"
-                    name="model"
-                    required
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.model : ''}
-                    placeholder="SUN2000-185KTL-H1"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Inverter Type</label>
-                  <select
-                    name="type"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.type : 'String'}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInverterModal({ isOpen: false, type: 'add', data: null });
+                      setActiveTab('plants');
+                      setPlantModal({ isOpen: true, type: 'add', data: null });
+                    }}
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-rose-100"
                   >
-                    <option value="String">String</option>
-                    <option value="Central">Central</option>
-                    <option value="WTG">WTG (Wind)</option>
-                    <option value="BESS">BESS (Battery)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Rating (MVA)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    name="rating_mva"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.rating_mva : ''}
-                    placeholder="0.16"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                    Create Power Plant
+                  </button>
                 </div>
               </div>
+            ) : (
+              <form onSubmit={handleSaveInverter} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Power Plant Assignment</label>
+                  {inverterModal.type === 'add' ? (
+                    <select
+                      name="plant_id"
+                      required
+                      defaultValue={inverterModal.data?.plant_id || ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">Select Target Grid Plant...</option>
+                      {plants.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      disabled
+                      value={inverterModal.data.plant_name}
+                      className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-400"
+                    />
+                  )}
+                  {inverterModal.type === 'edit' && (
+                    <input type="hidden" name="plant_id" value={inverterModal.data.plant_id} />
+                  )}
+                </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Unit Count</label>
-                  <input
-                    type="number"
-                    name="count"
-                    required
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.count : '1'}
-                    placeholder="e.g. 313"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Make (Manufacturer)</label>
+                    <input
+                      type="text"
+                      name="make"
+                      required
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.make : ''}
+                      placeholder="HUAWEI"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Model Name</label>
+                    <input
+                      type="text"
+                      name="model"
+                      required
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.model : ''}
+                      placeholder="SUN2000-185KTL-H1"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity per Unit (MW)</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    name="capacity_mw"
-                    required
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.capacity_mw : ''}
-                    placeholder="3.1250"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Total Capacity (MW)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    name="total_capacity_mw"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.total_capacity_mw : ''}
-                    placeholder="Leave empty to auto-calculate"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Element Type</label>
+                    <select
+                      name="type"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.type : 'String'}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="String">String Inverters</option>
+                      <option value="Central">Central Inverters</option>
+                      <option value="WTG">WTG (Wind)</option>
+                      <option value="BESS">BESS (Battery)</option>
+                      <option value="SVG">SVG</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Rating (MVA)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      name="rating_mva"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.rating_mva : ''}
+                      placeholder="0.16"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
-                  <input
-                    type="text"
-                    name="pooling_station"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.pooling_station : ''}
-                    placeholder="e.g. Bhadla(PG)"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
-                  <input
-                    type="text"
-                    name="owner"
-                    defaultValue={inverterModal.type === 'edit' ? inverterModal.data.owner : ''}
-                    placeholder="e.g. Adani"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Unit Count</label>
+                    <input
+                      type="number"
+                      name="count"
+                      required
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.count : '1'}
+                      placeholder="e.g. 313"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity per Unit (MW)</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      name="capacity_mw"
+                      required
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.capacity_mw : ''}
+                      placeholder="3.1250"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Last Maintenance Date</label>
-                  <input
-                    type="date"
-                    name="last_maintenance_date"
-                    defaultValue={inverterModal.type === 'edit' && inverterModal.data.last_maintenance_date ? new Date(inverterModal.data.last_maintenance_date).toISOString().split('T')[0] : ''}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Total Capacity (MW)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      name="total_capacity_mw"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.total_capacity_mw : ''}
+                      placeholder="Leave empty to auto-calculate"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
+                    <select
+                      name="pooling_station"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.pooling_station : ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select Pooling Station —</option>
+                      {poolingStations.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
 
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setInverterModal({ isOpen: false, type: 'add', data: null })}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
-                >
-                  {inverterModal.type === 'add' ? 'Register' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
+                    <input
+                      type="text"
+                      name="owner"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.owner : ''}
+                      placeholder="e.g. Adani"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Efficiency %</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="efficiency_percent"
+                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.efficiency_percent : ''}
+                      placeholder="e.g. 98.50"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Last Maintenance Date</label>
+                    <input
+                      type="date"
+                      name="last_maintenance_date"
+                      defaultValue={inverterModal.type === 'edit' && inverterModal.data.last_maintenance_date ? new Date(inverterModal.data.last_maintenance_date).toISOString().split('T')[0] : ''}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setInverterModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
+                  >
+                    {inverterModal.type === 'add' ? 'Register' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -2039,6 +2204,8 @@ const AdminDashboard = () => {
                 </div>
 
 
+
+
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 flex-shrink-0">
@@ -2054,6 +2221,250 @@ const AdminDashboard = () => {
                   className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
                 >
                   {userModal.type === 'add' ? 'Create User' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: POOLING STATION CRUD */}
+      {stationModal.isOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-lg w-full p-6 animate-scale-up">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 capitalize">
+              {stationModal.type === 'add' ? 'Add Pooling Station' : 'Edit Pooling Station'}
+            </h3>
+            <form onSubmit={handleSaveStation} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={stationModal.type === 'edit' ? stationModal.data.name : ''}
+                  placeholder="e.g. Bikaner (PG)"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                />
+              </div>
+
+
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Total Capacity (MW)</label>
+                <input
+                  type="number"
+                  step="0.001"
+                  name="total_capacity_mw"
+                  defaultValue={stationModal.type === 'edit' ? stationModal.data.total_capacity_mw : ''}
+                  placeholder="e.g. 1500"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStationModal({ isOpen: false, type: 'add', data: null })}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm"
+                >
+                  {stationModal.type === 'add' ? 'Create Station' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RE PLANT (PPC PLANT) CRUD */}
+      {ppcModal.isOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-2xl w-full p-6 animate-scale-up max-h-[90vh] flex flex-col">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 flex-shrink-0">
+              {ppcModal.type === 'add' ? 'Add RE Plant' : 'Edit RE Plant'}
+            </h3>
+            <form onSubmit={handleSavePpcPlant} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4 max-h-[65vh]">
+
+                {/* Basic Info */}
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Basic Information</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name <span className="text-rose-500">*</span></label>
+                    <input type="text" name="plant_name" required
+                      defaultValue={ppcModal.data?.plant_name || ''}
+                      placeholder="e.g. Bikaner Solar 1"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">WBES Acronym</label>
+                    <input type="text" name="wbes_acronym"
+                      defaultValue={ppcModal.data?.wbes_acronym || ''}
+                      placeholder="e.g. BKNR_S1"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity (MW)</label>
+                    <input type="number" step="0.001" name="capacity_mw"
+                      defaultValue={ppcModal.data?.capacity_mw || ''}
+                      placeholder="e.g. 250"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
+                    <input type="text" name="owner"
+                      defaultValue={ppcModal.data?.owner || ''}
+                      placeholder="e.g. Adani Green"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Evacuating Line</label>
+                    <input type="text" name="evacuating_line"
+                      defaultValue={ppcModal.data?.evacuating_line || ''}
+                      placeholder="e.g. 220kV Bikaner–Sikar"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Point of Interconnection (POI)</label>
+                    <input type="text" name="poi"
+                      defaultValue={ppcModal.data?.poi || ''}
+                      placeholder="e.g. 220kV Bikaner SS"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                </div>
+
+                {/* PPC Settings */}
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mt-2">PPC Configuration</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">PPC OEM</label>
+                    <input type="text" name="ppc_oem"
+                      defaultValue={ppcModal.data?.ppc_oem || ''}
+                      placeholder="e.g. ABB"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Mode of Control</label>
+                    <input type="text" name="ppc_mode_of_control"
+                      defaultValue={ppcModal.data?.ppc_mode_of_control || ''}
+                      placeholder="e.g. Auto"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Reference Point</label>
+                    <input type="text" name="ppc_reference_point"
+                      defaultValue={ppcModal.data?.ppc_reference_point || ''}
+                      placeholder="e.g. LV Bus"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Reference Voltage (kV)</label>
+                    <input type="number" step="0.001" name="ppc_reference_voltage_kv"
+                      defaultValue={ppcModal.data?.ppc_reference_voltage_kv || ''}
+                      placeholder="e.g. 220"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage Deadband (%)</label>
+                    <input type="number" step="0.001" name="ppc_voltage_deadband_pct"
+                      defaultValue={ppcModal.data?.ppc_voltage_deadband_pct || ''}
+                      placeholder="e.g. 2.5"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage Droop (%)</label>
+                    <input type="number" step="0.001" name="ppc_voltage_droop_pct"
+                      defaultValue={ppcModal.data?.ppc_voltage_droop_pct || ''}
+                      placeholder="e.g. 5"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Max Q Injection (MVAr)</label>
+                    <input type="number" step="0.001" name="max_reactive_power_injection_mvar"
+                      defaultValue={ppcModal.data?.max_reactive_power_injection_mvar || ''}
+                      placeholder="e.g. 120"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Max Q Absorption (MVAr)</label>
+                    <input type="number" step="0.001" name="max_reactive_power_absorption_mvar"
+                      defaultValue={ppcModal.data?.max_reactive_power_absorption_mvar || ''}
+                      placeholder="e.g. 80"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Comm Time (ms)</label>
+                    <input type="number" step="1" name="ppc_comm_time_ms"
+                      defaultValue={ppcModal.data?.ppc_comm_time_ms || ''}
+                      placeholder="e.g. 500"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Sampling Time (ms)</label>
+                    <input type="number" step="1" name="ppc_sampling_time_ms"
+                      defaultValue={ppcModal.data?.ppc_sampling_time_ms || ''}
+                      placeholder="e.g. 100"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Total Exec Time (ms)</label>
+                    <input type="number" step="1" name="ppc_total_exec_time_ms"
+                      defaultValue={ppcModal.data?.ppc_total_exec_time_ms || ''}
+                      placeholder="e.g. 1000"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                </div>
+
+                {/* Frequency Settings */}
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mt-2">Frequency Control</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Freq Control Mode</label>
+                    <input type="text" name="freq_control_mode"
+                      defaultValue={ppcModal.data?.freq_control_mode || ''}
+                      placeholder="e.g. ROCOF"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Freq Deadband (Hz)</label>
+                    <input type="number" step="0.001" name="freq_deadband"
+                      defaultValue={ppcModal.data?.freq_deadband || ''}
+                      placeholder="e.g. 0.05"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Freq Droop (%)</label>
+                    <input type="number" step="0.001" name="freq_droop_pct"
+                      defaultValue={ppcModal.data?.freq_droop_pct || ''}
+                      placeholder="e.g. 5"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Power Reduction @ 50.3Hz</label>
+                    <input type="text" name="power_reduction_at_50_3hz"
+                      defaultValue={ppcModal.data?.power_reduction_at_50_3hz || ''}
+                      placeholder="e.g. 10%"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500" />
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 flex-shrink-0 mt-4">
+                <button type="button"
+                  onClick={() => setPpcModal({ isOpen: false, type: 'add', data: null, stationId: null })}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl shadow-lg shadow-rose-100 text-sm">
+                  {ppcModal.type === 'add' ? 'Add RE Plant' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -2442,7 +2853,7 @@ const AdminDashboard = () => {
                     ? `Inverter Group: ${detailModal.data.make} ${detailModal.data.model}`
                     : detailModal.type === 'plant'
                     ? `Power Plant: ${detailModal.data.name}`
-                    : `PPC Plant Controller: ${detailModal.data.plant_name}`}
+                    : `RE Plant Controller: ${detailModal.data.plant_name}`}
                 </h3>
               </div>
               <button

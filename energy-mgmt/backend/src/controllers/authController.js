@@ -17,10 +17,8 @@ const login = async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT u.id, u.username, u.email, u.password_hash, u.role, u.pooling_station_id,
-              ps.name AS station_name
+      `SELECT u.id, u.username, u.email, u.password_hash, u.role
        FROM users u
-       LEFT JOIN pooling_stations ps ON ps.id = u.pooling_station_id
        WHERE u.email = $1 OR u.username = $1`,
       [email]
     );
@@ -49,11 +47,6 @@ const login = async (req, res) => {
         role: user.role,
       };
 
-      if (user.role === 'pooling_station' && user.pooling_station_id) {
-        tokenPayload.pooling_station_id = user.pooling_station_id;
-        tokenPayload.station_name = user.station_name;
-      }
-
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
       const responseUser = {
@@ -62,11 +55,6 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
       };
-
-      if (user.role === 'pooling_station' && user.pooling_station_id) {
-        responseUser.pooling_station_id = user.pooling_station_id;
-        responseUser.station_name = user.station_name;
-      }
 
       return res.status(200).json({
         message: 'Login successful',
@@ -98,7 +86,7 @@ const login = async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error during login' });
+    return res.status(500).json({ error: `Internal server error during login: ${err?.message || ''}` });
   }
 };
 
@@ -112,10 +100,8 @@ const verify2FA = async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT u.id, u.username, u.email, u.role, u.pooling_station_id, u.two_factor_code, u.two_factor_expires,
-              ps.name AS station_name
+      `SELECT u.id, u.username, u.email, u.role, u.two_factor_code, u.two_factor_expires
        FROM users u
-       LEFT JOIN pooling_stations ps ON ps.id = u.pooling_station_id
        WHERE u.id = $1`,
       [userId]
     );
@@ -148,11 +134,6 @@ const verify2FA = async (req, res) => {
       role: user.role,
     };
 
-    if (user.role === 'pooling_station' && user.pooling_station_id) {
-      tokenPayload.pooling_station_id = user.pooling_station_id;
-      tokenPayload.station_name = user.station_name;
-    }
-
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
     const responseUser = {
@@ -162,11 +143,6 @@ const verify2FA = async (req, res) => {
       role: user.role,
     };
 
-    if (user.role === 'pooling_station' && user.pooling_station_id) {
-      responseUser.pooling_station_id = user.pooling_station_id;
-      responseUser.station_name = user.station_name;
-    }
-
     return res.status(200).json({
       message: 'Login successful',
       token,
@@ -174,7 +150,7 @@ const verify2FA = async (req, res) => {
     });
   } catch (err) {
     console.error('Verify 2FA error:', err);
-    return res.status(500).json({ error: 'Internal server error during 2FA verification' });
+    return res.status(500).json({ error: `Internal server error during 2FA verification: ${err?.message || ''}` });
   }
 };
 
@@ -211,7 +187,7 @@ const forgotPassword = async (req, res) => {
     return res.status(200).json({ message: 'Password reset code has been sent to your email.' });
   } catch (err) {
     console.error('Forgot password error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -254,7 +230,7 @@ const resetPassword = async (req, res) => {
     return res.status(200).json({ message: 'Password has been reset successfully. You can now log in.' });
   } catch (err) {
     console.error('Reset password error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: `Internal server error: ${err?.message || ''}` });
   }
 };
 
@@ -262,10 +238,8 @@ const resetPassword = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const userResult = await db.query(
-      `SELECT u.id, u.username, u.email, u.role, u.created_at, u.pooling_station_id,
-              ps.name AS station_name
+      `SELECT u.id, u.username, u.email, u.role, u.created_at
        FROM users u
-       LEFT JOIN pooling_stations ps ON ps.id = u.pooling_station_id
        WHERE u.id = $1`,
       [req.user.id]
     );
@@ -287,16 +261,6 @@ const getMe = async (req, res) => {
         can_read: true,
         can_write: true,
       }));
-    } else if (user.role === 'pooling_station') {
-      // Pooling station users see all ppc_plants in their station
-      const ppcResult = await db.query(
-        `SELECT id AS plant_id, plant_name, capacity_mw
-         FROM ppc_plants
-         WHERE pooling_station_id = $1
-         ORDER BY plant_name`,
-        [user.pooling_station_id]
-      );
-      permissions = ppcResult.rows;
     } else {
       const permResult = await db.query(
         `SELECT perm.plant_id, p.name as plant_name, perm.can_read, perm.can_write
@@ -314,7 +278,7 @@ const getMe = async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching profile me:', err);
-    return res.status(500).json({ error: 'Internal server error fetching user details' });
+    return res.status(500).json({ error: `Internal server error fetching user details: ${err?.message || ''}` });
   }
 };
 
@@ -358,7 +322,7 @@ const changePassword = async (req, res) => {
     return res.status(200).json({ message: 'Password updated successfully' });
   } catch (err) {
     console.error('Change password error:', err);
-    return res.status(500).json({ error: 'Internal server error changing password' });
+    return res.status(500).json({ error: `Internal server error changing password: ${err?.message || ''}` });
   }
 };
 

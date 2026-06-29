@@ -51,15 +51,7 @@ function App() {
         }
       />
 
-      {/* Station Dashboard Routes — accessible by pooling_station role AND admin (for preview) */}
-      <Route
-        path="/station-dashboard"
-        element={
-          <ProtectedRoute stationOnly>
-            <StationDashboard />
-          </ProtectedRoute>
-        }
-      />
+      {/* Station Dashboard Route — accessible by admin (for preview) */}
       <Route
         path="/station-dashboard/:stationId"
         element={

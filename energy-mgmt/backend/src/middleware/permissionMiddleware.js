@@ -46,7 +46,7 @@ const requirePlantPermission = (permissionType) => {
       next();
     } catch (err) {
       console.error('Error in permission middleware:', err);
-      return res.status(500).json({ error: 'Internal server error checking plant permissions' });
+      return res.status(500).json({ error: `Internal server error checking plant permissions: ${err?.message || ''}` });
     }
   };
 };

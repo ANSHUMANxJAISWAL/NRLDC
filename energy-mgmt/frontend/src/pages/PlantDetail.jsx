@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
-import { plantsAPI, invertersAPI, ppcPlantsAPI, uploadAPI, BASE_URL } from '../services/api';
+import { plantsAPI, invertersAPI, ppcPlantsAPI, uploadAPI, poolingStationsAPI, BASE_URL } from '../services/api';
 
 const PlantDetail = () => {
   const { id } = useParams();
@@ -15,6 +15,7 @@ const PlantDetail = () => {
   const [inverters, setInverters] = useState([]);
   const [ppcData, setPpcData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [poolingStations, setPoolingStations] = useState([]);
 
   // Tab State: 'inverters' | 'svgs' | 'ppc'
   const [activeTab, setActiveTab] = useState('inverters');
@@ -63,9 +64,13 @@ const PlantDetail = () => {
   // Load All Plant Data
   const loadPlantData = async () => {
     try {
-      const data = await plantsAPI.getById(id);
+      const [data, psData] = await Promise.all([
+        plantsAPI.getById(id),
+        poolingStationsAPI.getAll().catch(() => ({ poolingStations: [] }))
+      ]);
       setPlant(data.plant);
       setInverters(data.inverters);
+      setPoolingStations(psData.poolingStations || []);
       
       // Fetch PPC details
       try {
@@ -105,6 +110,10 @@ const PlantDetail = () => {
   const handleSavePlant = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const selectedStationName = formData.get('pooling_station') || '';
+    const matchingStation = poolingStations.find(s => s.name === selectedStationName);
+    const pooling_station_id = matchingStation ? matchingStation.id : null;
+
     const plantData = {
       name: formData.get('name'),
       location: formData.get('location'),
@@ -112,7 +121,8 @@ const PlantDetail = () => {
       commissioned_date: formData.get('commissioned_date') || null,
       owner: formData.get('owner') || null,
       company_group: formData.get('company_group') || null,
-      pooling_station: formData.get('pooling_station') || null,
+      pooling_station: selectedStationName || null,
+      pooling_station_id,
     };
 
     try {
@@ -151,10 +161,14 @@ const PlantDetail = () => {
           history: ppcData.history
         });
       } else {
+        const selectedStationName = formData.get('pooling_station') || '';
+        const matchingStation = poolingStations.find(s => s.name === selectedStationName);
+        const stationId = matchingStation ? matchingStation.id : 1;
+
         await ppcPlantsAPI.create({
           power_plant_id: parseInt(id, 10),
           plant_name: plantData.name + ' PPC',
-          pooling_station_id: 1,
+          pooling_station_id: stationId,
           ppc_oem: ppcOEM,
           evacuating_line: evacLine,
           poi: poi,
@@ -413,10 +427,13 @@ const PlantDetail = () => {
     const isFreqEnabled = formData.get('freq_control_mode_enabled') === 'true';
     const hasPowerReduction = formData.get('power_reduction_at_50_3hz') === 'true';
 
+    const matchingStation = poolingStations.find(s => s.name === plant?.pooling_station);
+    const fallbackStationId = matchingStation ? matchingStation.id : (poolingStations[0] ? poolingStations[0].id : 1);
+
     const ppcFields = {
       power_plant_id: parseInt(id, 10),
       plant_name: ppcData?.plant_name || plant.name + '_PPC',
-      pooling_station_id: ppcData?.pooling_station_id || 1,
+      pooling_station_id: ppcData?.pooling_station_id || fallbackStationId,
       ppc_oem: ppcData?.ppc_oem || 'ABB',
       ppc_mode_of_control: formData.get('ppc_mode_of_control') || '',
       ppc_reference_point: formData.get('ppc_reference_point') || '',
@@ -682,13 +699,16 @@ const PlantDetail = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling station name</label>
-                        <input
-                          type="text"
+                        <select
                           name="pooling_station"
                           defaultValue={plant.pooling_station || ''}
-                          placeholder="e.g. Bhadla PS"
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                        />
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                        >
+                          <option value="">— Select Pooling Station —</option>
+                          {poolingStations.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Owner</label>
@@ -701,16 +721,17 @@ const PlantDetail = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Type</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Element Type</label>
                         <select
                           name="type"
                           defaultValue="Central"
                           className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                         >
-                          <option value="Central">Central</option>
-                          <option value="String">String</option>
+                          <option value="Central">Central Inverters</option>
+                          <option value="String">String Inverters</option>
                           <option value="WTG">WTG (Wind)</option>
                           <option value="BESS">BESS PCS (Battery)</option>
+                          <option value="SVG">SVG</option>
                         </select>
                       </div>
                       <div className="md:col-span-2 lg:col-span-3 flex justify-end items-end pt-4">
@@ -1170,13 +1191,16 @@ const PlantDetail = () => {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling station name</label>
-                        <input
-                          type="text"
+                        <select
                           name="pooling_station"
                           defaultValue={plant.pooling_station || ''}
-                          placeholder="e.g. Bhadla PS"
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                        />
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                        >
+                          <option value="">— Select Pooling Station —</option>
+                          {poolingStations.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-600 mb-1">Owner</label>
@@ -1604,240 +1628,253 @@ const PlantDetail = () => {
               </p>
             </div>
 
-            <form onSubmit={handleSavePpcSettings} className="space-y-6">
-              <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-                
-                {/* Control mode & reference */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Control mode & reference</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Mode of control</label>
-                      <select
-                        name="ppc_mode_of_control"
-                        defaultValue={ppcData?.ppc_mode_of_control || 'Voltage control'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                      >
-                        <option value="Voltage control">Voltage control</option>
-                        <option value="PF Control">PF Control</option>
-                        <option value="Q Control">Q Control</option>
-                        <option value="Q(V) Mode">Q(V) Mode</option>
-                        <option value="V-Mode">V-Mode</option>
-                        <option value="AGC">AGC</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Reference point</label>
-                      <input
-                        type="text" name="ppc_reference_point"
-                        defaultValue={ppcData?.ppc_reference_point || 'e.g. POI'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Reference voltage (kV)</label>
-                      <input
-                        type="text" name="ppc_reference_voltage_kv"
-                        defaultValue={ppcData?.ppc_reference_voltage_kv || '220'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 font-semibold text-slate-800"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage dead-band (%)</label>
-                      <input
-                        type="text" name="ppc_voltage_deadband_pct"
-                        defaultValue={ppcData?.ppc_voltage_deadband_pct || '0.5'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage droop (%)</label>
-                      <input
-                        type="text" name="ppc_voltage_droop_pct"
-                        defaultValue={ppcData?.ppc_voltage_droop_pct || '4'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reactive power limits at POI */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Reactive power limits at POI</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Max injection (MVAr)</label>
-                      <input
-                        type="text" name="max_reactive_power_injection_mvar"
-                        defaultValue={ppcData?.max_reactive_power_injection_mvar || '80'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Max absorption (MVAr)</label>
-                      <input
-                        type="text" name="max_reactive_power_absorption_mvar"
-                        defaultValue={ppcData?.max_reactive_power_absorption_mvar || '80'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
+            {poolingStations.length === 0 ? (
+              <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-sm text-center">
+                <span className="text-5xl">⚠️</span>
+                <h4 className="text-lg font-bold text-slate-800 mt-4">No Pooling Stations Registered</h4>
+                <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+                  A pooling station must be registered in the system first to configure Power Plant Controller (PPC) settings.
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Please ask an administrator to register a pooling station first.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSavePpcSettings} className="space-y-6">
+                <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+                  
+                  {/* Control mode & reference */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Control mode & reference</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Mode of control</label>
+                        <select
+                          name="ppc_mode_of_control"
+                          defaultValue={ppcData?.ppc_mode_of_control || 'Voltage control'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                        >
+                          <option value="Voltage control">Voltage control</option>
+                          <option value="PF Control">PF Control</option>
+                          <option value="Q Control">Q Control</option>
+                          <option value="Q(V) Mode">Q(V) Mode</option>
+                          <option value="V-Mode">V-Mode</option>
+                          <option value="AGC">AGC</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Reference point</label>
+                        <input
+                          type="text" name="ppc_reference_point"
+                          defaultValue={ppcData?.ppc_reference_point || 'e.g. POI'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Reference voltage (kV)</label>
+                        <input
+                          type="text" name="ppc_reference_voltage_kv"
+                          defaultValue={ppcData?.ppc_reference_voltage_kv || '220'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 font-semibold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage dead-band (%)</label>
+                        <input
+                          type="text" name="ppc_voltage_deadband_pct"
+                          defaultValue={ppcData?.ppc_voltage_deadband_pct || '0.5'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Voltage droop (%)</label>
+                        <input
+                          type="text" name="ppc_voltage_droop_pct"
+                          defaultValue={ppcData?.ppc_voltage_droop_pct || '4'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Timing parameters */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Timing parameters</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">PPC communication time (ms)</label>
-                      <input
-                        type="number" name="ppc_comm_time_ms"
-                        defaultValue={ppcData?.ppc_comm_time_ms || 100}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">PQ meter sampling time (ms)</label>
-                      <input
-                        type="number" name="ppc_sampling_time_ms"
-                        defaultValue={ppcData?.ppc_sampling_time_ms || 20}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Total execution time (ms)</label>
-                      <input
-                        type="text" name="ppc_total_exec_time_ms"
-                        defaultValue={ppcData?.ppc_total_exec_time_ms || '200'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Frequency control */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Frequency control</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox" name="freq_control_mode_enabled" value="true"
-                        defaultChecked={ppcData?.freq_control_mode === 'Enabled'}
-                        className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
-                        id="freq-enabled-toggle"
-                      />
-                      <label htmlFor="freq-enabled-toggle" className="text-sm font-semibold text-slate-700">Frequency control mode enabled</label>
-                    </div>
-
+                  {/* Reactive power limits at POI */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Reactive power limits at POI</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Dead-band (Hz)</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Max injection (MVAr)</label>
                         <input
-                          type="text" name="freq_deadband"
-                          defaultValue={ppcData?.freq_deadband || '0.05'}
+                          type="text" name="max_reactive_power_injection_mvar"
+                          defaultValue={ppcData?.max_reactive_power_injection_mvar || '80'}
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Droop (%)</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Max absorption (MVAr)</label>
                         <input
-                          type="text" name="freq_droop_pct"
-                          defaultValue={ppcData?.freq_droop_pct || '5'}
+                          type="text" name="max_reactive_power_absorption_mvar"
+                          defaultValue={ppcData?.max_reactive_power_absorption_mvar || '80'}
                           className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
                         />
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 pt-2">
-                      <input
-                        type="checkbox" name="power_reduction_at_50_3hz" value="true"
-                        defaultChecked={ppcData?.power_reduction_at_50_3hz === 'Yes' || ppcData?.power_reduction_at_50_3hz === 'true'}
-                        className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
-                        id="active-power-reduction-toggle"
-                      />
-                      <label htmlFor="active-power-reduction-toggle" className="text-sm font-semibold text-slate-700">Reduce active power by 10% if grid frequency reaches 50.3 Hz</label>
-                    </div>
                   </div>
-                </div>
 
-                {/* Meta details */}
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
-                      <input
-                        type="text" name="owner"
-                        defaultValue={ppcData?.owner || plant.owner || 'ACME Renewables'}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Date setting was changed</label>
-                      <input
-                        type="date" name="date_changed" required
-                        defaultValue={new Date().toISOString().split('T')[0]}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">PPC Settings document upload</label>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-3 mt-1">
-                          <input
-                            type="file"
-                            accept=".xlsx,.pdf,.csv"
-                            onChange={async (e) => {
-                              const file = e.target.files[0];
-                              if (file) {
-                                try {
-                                  showToast('Uploading file...', 'info');
-                                  const res = await uploadAPI.uploadFile(file, 'ppc');
-                                  setPpcUploadedFile(res.filename);
-                                  showToast('File uploaded successfully.', 'success');
-                                } catch (err) {
-                                  showToast('Failed to upload file.', 'error');
-                                  console.error(err);
-                                }
-                              }
-                            }}
-                            className="hidden" id="ppc-file-picker"
-                          />
-                          <label
-                            htmlFor="ppc-file-picker"
-                            className="px-4 py-2 border border-slate-250 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1"
-                          >
-                            ↑ Upload file
-                          </label>
-                          {ppcUploadedFile && (
-                            <span className="text-xs text-slate-500 font-semibold truncate max-w-[120px]" title={ppcUploadedFile}>{ppcUploadedFile}</span>
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-semibold">Allowed formats: .xlsx, .pdf, .csv only</span>
+                  {/* Timing parameters */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Timing parameters</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">PPC communication time (ms)</label>
+                        <input
+                          type="number" name="ppc_comm_time_ms"
+                          defaultValue={ppcData?.ppc_comm_time_ms || 100}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">PQ meter sampling time (ms)</label>
+                        <input
+                          type="number" name="ppc_sampling_time_ms"
+                          defaultValue={ppcData?.ppc_sampling_time_ms || 20}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Total execution time (ms)</label>
+                        <input
+                          type="text" name="ppc_total_exec_time_ms"
+                          defaultValue={ppcData?.ppc_total_exec_time_ms || '200'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Form Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => loadPlantData()}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl text-sm"
-                  >
-                    Cancel
-                  </button>
-                  {plant.can_write && (
+                  {/* Frequency control */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Frequency control</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox" name="freq_control_mode_enabled" value="true"
+                          defaultChecked={ppcData?.freq_control_mode === 'Enabled'}
+                          className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
+                          id="freq-enabled-toggle"
+                        />
+                        <label htmlFor="freq-enabled-toggle" className="text-sm font-semibold text-slate-700">Frequency control mode enabled</label>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Dead-band (Hz)</label>
+                          <input
+                            type="text" name="freq_deadband"
+                            defaultValue={ppcData?.freq_deadband || '0.05'}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1">Droop (%)</label>
+                          <input
+                            type="text" name="freq_droop_pct"
+                            defaultValue={ppcData?.freq_droop_pct || '5'}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <input
+                          type="checkbox" name="power_reduction_at_50_3hz" value="true"
+                          defaultChecked={ppcData?.power_reduction_at_50_3hz === 'Yes' || ppcData?.power_reduction_at_50_3hz === 'true'}
+                          className="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500"
+                          id="active-power-reduction-toggle"
+                        />
+                        <label htmlFor="active-power-reduction-toggle" className="text-sm font-semibold text-slate-700">Reduce active power by 10% if grid frequency reaches 50.3 Hz</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Meta details */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
+                        <input
+                          type="text" name="owner"
+                          defaultValue={ppcData?.owner || plant.owner || 'ACME Renewables'}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Date setting was changed</label>
+                        <input
+                          type="date" name="date_changed" required
+                          defaultValue={new Date().toISOString().split('T')[0]}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">PPC Settings document upload</label>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-3 mt-1">
+                            <input
+                              type="file"
+                              accept=".xlsx,.pdf,.csv"
+                              onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  try {
+                                    showToast('Uploading file...', 'info');
+                                    const res = await uploadAPI.uploadFile(file, 'ppc');
+                                    setPpcUploadedFile(res.filename);
+                                    showToast('File uploaded successfully.', 'success');
+                                  } catch (err) {
+                                    showToast('Failed to upload file.', 'error');
+                                    console.error(err);
+                                  }
+                                }
+                              }}
+                              className="hidden" id="ppc-file-picker"
+                            />
+                            <label
+                              htmlFor="ppc-file-picker"
+                              className="px-4 py-2 border border-slate-250 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              ↑ Upload file
+                            </label>
+                            {ppcUploadedFile && (
+                              <span className="text-xs text-slate-500 font-semibold truncate max-w-[120px]" title={ppcUploadedFile}>{ppcUploadedFile}</span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-semibold">Allowed formats: .xlsx, .pdf, .csv only</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form Buttons */}
+                  <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                     <button
-                      type="submit"
-                      className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm transition-all"
+                      type="button"
+                      onClick={() => loadPlantData()}
+                      className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl text-sm"
                     >
-                      Save as new version
+                      Cancel
                     </button>
-                  )}
+                    {plant.can_write && (
+                      <button
+                        type="submit"
+                        className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm transition-all"
+                      >
+                        Save as new version
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            )}
 
             {/* PPC Audit History */}
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
@@ -1910,105 +1947,132 @@ const PlantDetail = () => {
             <h3 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100">
               Edit Power Plant Master Profile
             </h3>
-            <form onSubmit={handleSavePlant} className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name</label>
-                  <input
-                    type="text" name="name" required defaultValue={plant.name}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Location / Area</label>
-                  <input
-                    type="text" name="location" required defaultValue={plant.location}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
-                  <input
-                    type="text" name="pooling_station" defaultValue={plant.pooling_station || ''}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Rated Capacity (MW)</label>
-                  <input
-                    type="number" step="0.001" name="capacity_mw" required defaultValue={plant.capacity_mw}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
-                  <input
-                    type="text" name="owner" defaultValue={plant.owner || ''}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Company Group</label>
-                  <input
-                    type="text" name="company_group" defaultValue={plant.company_group || ''}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
-                  <input
-                    type="date" name="commissioned_date"
-                    defaultValue={plant.commissioned_date ? new Date(plant.commissioned_date).toISOString().split('T')[0] : ''}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                  />
+            {poolingStations.length === 0 ? (
+              <div className="text-center py-6">
+                <span className="text-4xl">⚠️</span>
+                <p className="mt-4 text-slate-700 font-bold">
+                  No pooling stations are registered in the system.
+                </p>
+                <p className="text-xs text-slate-400 mt-1 mb-6">
+                  You must register a pooling station before you can update plant details.
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlantModalOpen(false)}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
-
-              {/* Extra master inputs mapping to ppc_plants backend columns */}
-              <div className="space-y-3 pt-3 border-t border-slate-100">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">PPC & Connection Information</h4>
+            ) : (
+              <form onSubmit={handleSavePlant} className="space-y-4 text-sm">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">PPC OEM Name</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name</label>
                     <input
-                      type="text" name="ppc_oem" defaultValue={ppcData?.ppc_oem || 'ABB'}
+                      type="text" name="name" required defaultValue={plant.name}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Evacuating Line</label>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Location / Area</label>
                     <input
-                      type="text" name="evacuating_line" defaultValue={ppcData?.evacuating_line || ''}
-                      placeholder="e.g. 400kV line"
+                      type="text" name="location" required defaultValue={plant.location}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">POI Reactive power capability / connection</label>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
+                    <select
+                      name="pooling_station"
+                      defaultValue={plant.pooling_station || ''}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    >
+                      <option value="">— Select Pooling Station —</option>
+                      {poolingStations.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Rated Capacity (MW)</label>
                     <input
-                      type="text" name="poi" defaultValue={ppcData?.poi || ''}
-                      placeholder="e.g. 400kV Bikaner(PG)"
+                      type="number" step="0.001" name="capacity_mw" required defaultValue={plant.capacity_mw}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
+                    <input
+                      type="text" name="owner" defaultValue={plant.owner || ''}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Company Group</label>
+                    <input
+                      type="text" name="company_group" defaultValue={plant.company_group || ''}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
+                    <input
+                      type="date" name="commissioned_date"
+                      defaultValue={plant.commissioned_date ? new Date(plant.commissioned_date).toISOString().split('T')[0] : ''}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                <button
-                  type="button" onClick={() => setPlantModalOpen(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-lg shadow-teal-50"
-                >
-                  Save Master Info
-                </button>
-              </div>
-            </form>
+                {/* Extra master inputs mapping to ppc_plants backend columns */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">PPC & Connection Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">PPC OEM Name</label>
+                      <input
+                        type="text" name="ppc_oem" defaultValue={ppcData?.ppc_oem || 'ABB'}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Evacuating Line</label>
+                      <input
+                        type="text" name="evacuating_line" defaultValue={ppcData?.evacuating_line || ''}
+                        placeholder="e.g. 400kV line"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">POI Reactive power capability / connection</label>
+                      <input
+                        type="text" name="poi" defaultValue={ppcData?.poi || ''}
+                        placeholder="e.g. 400kV Bikaner(PG)"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button" onClick={() => setPlantModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-lg shadow-teal-50"
+                  >
+                    Save Master Info
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
