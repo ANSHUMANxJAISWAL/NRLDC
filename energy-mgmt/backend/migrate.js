@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const main = async () => {
   console.log('====================================================');
-  console.log('Running Migration: June 23rd to June 25th schema changes');
+  console.log('Running Migration: Consolidated database schema changes');
   console.log('====================================================');
 
   const client = new Client({
@@ -21,7 +21,7 @@ const main = async () => {
     await client.connect();
     console.log('Connected to PostgreSQL successfully.');
 
-    const sqlPath = path.join(__dirname, '../database/migrate_23_june_to_25_june.sql');
+    const sqlPath = path.join(__dirname, '../database/migration.sql');
     console.log(`Reading migration SQL file from: ${sqlPath}`);
     const sql = fs.readFileSync(sqlPath, 'utf8');
 

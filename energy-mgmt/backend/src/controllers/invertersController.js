@@ -86,7 +86,7 @@ const getInverters = async (req, res) => {
     }
 
     // 5. Sorting
-    const allowedSortFields = ['capacity_mw', 'efficiency_percent', 'last_maintenance_date', 'make', 'model', 'type', 'count', 'total_capacity_mw', 'id'];
+    const allowedSortFields = ['capacity_mw', 'make', 'model', 'type', 'count', 'total_capacity_mw', 'id'];
     const sortField = allowedSortFields.includes(sort) ? sort : 'id';
     const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
     selectQuery += ` ORDER BY i.${sortField} ${sortOrder}`;
@@ -166,8 +166,6 @@ const createInverter = async (req, res) => {
     pooling_station,
     owner,
     status,
-    efficiency_percent,
-    last_maintenance_date,
     lvrt,
     hvrt
   } = req.body;
@@ -189,8 +187,8 @@ const createInverter = async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO inverters (plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, efficiency_percent, last_maintenance_date, lvrt, hvrt) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
+      `INSERT INTO inverters (plant_id, make, model, type, rating_mva, capacity_mw, count, total_capacity_mw, pooling_station, owner, lvrt, hvrt) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
        RETURNING *`,
       [
         plant_id,
@@ -203,8 +201,6 @@ const createInverter = async (req, res) => {
         total_capacity_mw,
         pooling_station || null,
         owner || null,
-        efficiency_percent !== undefined && efficiency_percent !== '' ? efficiency_percent : null,
-        last_maintenance_date || null,
         lvrt ? JSON.stringify(lvrt) : null,
         hvrt ? JSON.stringify(hvrt) : null
       ]
@@ -245,8 +241,6 @@ const updateInverter = async (req, res) => {
     total_capacity_mw,
     pooling_station,
     owner,
-    efficiency_percent,
-    last_maintenance_date,
     lvrt,
     hvrt,
     history
@@ -277,9 +271,7 @@ const updateInverter = async (req, res) => {
       count: 'Units Count',
       total_capacity_mw: 'Total Capacity (MW)',
       pooling_station: 'Pooling Station',
-      owner: 'Owner',
-      efficiency_percent: 'Efficiency %',
-      last_maintenance_date: 'Last Maintenance Date'
+      owner: 'Owner'
     };
 
     for (const [key, label] of Object.entries(fieldsToCompare)) {
@@ -308,12 +300,10 @@ const updateInverter = async (req, res) => {
            total_capacity_mw = COALESCE($7, total_capacity_mw), 
            pooling_station = COALESCE($8, pooling_station), 
            owner = COALESCE($9, owner), 
-           efficiency_percent = COALESCE($10, efficiency_percent), 
-           last_maintenance_date = COALESCE($11, last_maintenance_date),
-           lvrt = COALESCE($12, lvrt),
-           hvrt = COALESCE($13, hvrt),
-           history = COALESCE($14, history)
-       WHERE id = $15 
+           lvrt = COALESCE($10, lvrt),
+           hvrt = COALESCE($11, hvrt),
+           history = COALESCE($12, history)
+       WHERE id = $13 
        RETURNING *`,
       [
         make,
@@ -325,8 +315,6 @@ const updateInverter = async (req, res) => {
         total_capacity_mw,
         pooling_station,
         owner,
-        efficiency_percent !== undefined && efficiency_percent !== '' ? efficiency_percent : null,
-        last_maintenance_date,
         lvrt ? JSON.stringify(lvrt) : null,
         hvrt ? JSON.stringify(hvrt) : null,
         history ? JSON.stringify(history) : null,
@@ -432,13 +420,10 @@ const exportInvertersCSV = async (req, res) => {
     const result = await db.query(selectQuery, queryParams);
     const rows = result.rows;
 
-    let csvContent = 'Group ID,Make,Model,Type,Rating (MVA),Capacity (MW),Count,Total Capacity (MW),Pooling Station,Owner,Efficiency %,Last Maintenance\n';
+    let csvContent = 'Group ID,Make,Model,Type,Rating (MVA),Capacity (MW),Count,Total Capacity (MW),Pooling Station,Owner\n';
     
     rows.forEach(r => {
-      const lastMaintenance = r.last_maintenance_date 
-        ? new Date(r.last_maintenance_date).toISOString().split('T')[0] 
-        : 'N/A';
-      csvContent += `"${r.id}","${r.make}","${r.model}","${r.type}",${r.rating_mva || 'N/A'},${r.capacity_mw},${r.count},${r.total_capacity_mw},"${r.pooling_station || 'N/A'}","${r.owner || 'N/A'}",${r.efficiency_percent !== null ? r.efficiency_percent : 'N/A'},"${lastMaintenance}"\n`;
+      csvContent += `"${r.id}","${r.make}","${r.model}","${r.type}",${r.rating_mva || 'N/A'},${r.capacity_mw},${r.count},${r.total_capacity_mw},"${r.pooling_station || 'N/A'}","${r.owner || 'N/A'}"\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');

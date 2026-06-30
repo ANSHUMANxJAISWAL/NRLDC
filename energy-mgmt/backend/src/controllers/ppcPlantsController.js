@@ -4,22 +4,38 @@ const db = require('../config/db');
  * GET /api/ppc-plants?pooling_station_id=X&search=Y&status=Z
  */
 const getAllPpcPlants = async (req, res) => {
-  const { pooling_station_id, power_plant_id, search, status } = req.query;
-
-  let stationId = pooling_station_id;
+  const { pooling_station_id, power_plant_id, search, ppc_make, company_group } = req.query;
 
   try {
     let conditions = [];
     let params = [];
     let idx = 1;
 
-    if (stationId) {
+    // Permissions: standard user can only see allowed plants
+    if (req.user.role !== 'admin') {
+      conditions.push(`pp.power_plant_id IN (
+        SELECT plant_id 
+        FROM user_plant_permissions 
+        WHERE user_id = $${idx++} AND can_read = TRUE
+      )`);
+      params.push(req.user.id);
+    }
+
+    if (pooling_station_id) {
       conditions.push(`pp.pooling_station_id = $${idx++}`);
-      params.push(stationId);
+      params.push(pooling_station_id);
     }
     if (power_plant_id) {
       conditions.push(`pp.power_plant_id = $${idx++}`);
       params.push(power_plant_id);
+    }
+    if (ppc_make) {
+      conditions.push(`pp.ppc_oem = $${idx++}`);
+      params.push(ppc_make);
+    }
+    if (company_group) {
+      conditions.push(`pw.company_group = $${idx++}`);
+      params.push(company_group);
     }
     if (search) {
       conditions.push(`(pp.plant_name ILIKE $${idx} OR pp.owner ILIKE $${idx} OR pp.wbes_acronym ILIKE $${idx})`);
@@ -33,7 +49,8 @@ const getAllPpcPlants = async (req, res) => {
       `SELECT
         pp.*,
         ps.name AS pooling_station_name,
-        pw.name AS linked_plant_name
+        pw.name AS linked_plant_name,
+        pw.company_group
        FROM ppc_plants pp
        LEFT JOIN pooling_stations ps ON ps.id = pp.pooling_station_id
        LEFT JOIN power_plants pw ON pw.id = pp.power_plant_id
@@ -88,6 +105,7 @@ const createPpcPlant = async (req, res) => {
     max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
     ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
     freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
+    kp, ti
   } = req.body;
 
   if (!pooling_station_id || !plant_name) {
@@ -116,11 +134,12 @@ const createPpcPlant = async (req, res) => {
         ppc_voltage_deadband_pct, ppc_voltage_droop_pct,
         max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
         ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
-        freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz
+        freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
+        kp, ti
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,
         $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-        $20,$21,$22,$23
+        $20,$21,$22,$23,$24,$25
       ) RETURNING *`,
       [
         pooling_station_id, power_plant_id || null, plant_name, wbes_acronym || null,
@@ -132,6 +151,8 @@ const createPpcPlant = async (req, res) => {
         ppc_sampling_time_ms || null, ppc_total_exec_time_ms || null,
         freq_control_mode || null, freq_deadband || null, freq_droop_pct || null,
         power_reduction_at_50_3hz || null,
+        (kp === '' || kp === null || kp === undefined) ? null : parseFloat(kp),
+        (ti === '' || ti === null || ti === undefined) ? null : parseFloat(ti),
       ]
     );
 
@@ -199,7 +220,9 @@ const updatePpcPlant = async (req, res) => {
       freq_droop_pct: 'Frequency Droop %',
       power_reduction_at_50_3hz: 'Power Reduction @ 50.3Hz',
       pooling_station_id: 'Pooling Station ID',
-      power_plant_id: 'Power Plant ID'
+      power_plant_id: 'Power Plant ID',
+      kp: 'Proportional Gain (Kp)',
+      ti: 'Integral Time Constant (Ti)'
     };
 
     for (const [key, label] of Object.entries(fieldsToCompare)) {
@@ -221,14 +244,14 @@ const updatePpcPlant = async (req, res) => {
       'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar',
       'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms',
       'freq_control_mode', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz',
-      'pooling_station_id', 'power_plant_id', 'history'
+      'pooling_station_id', 'power_plant_id', 'kp', 'ti', 'history'
     ];
 
     const setClauses = [];
     const values = [];
     let idx = 1;
 
-    const numericFields = new Set(['capacity_mw', 'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms', 'ppc_reference_voltage_kv', 'ppc_voltage_deadband_pct', 'ppc_voltage_droop_pct', 'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz', 'pooling_station_id', 'power_plant_id']);
+    const numericFields = new Set(['capacity_mw', 'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms', 'ppc_reference_voltage_kv', 'ppc_voltage_deadband_pct', 'ppc_voltage_droop_pct', 'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz', 'pooling_station_id', 'power_plant_id', 'kp', 'ti']);
 
     for (const field of fields) {
       if (req.body[field] !== undefined) {

@@ -47,6 +47,9 @@ CREATE TABLE power_plants (
     capacity_mw NUMERIC(10, 3) NOT NULL,
     commissioned_date DATE, -- Nullable to handle missing dates in real data
     location VARCHAR(255) NOT NULL,
+    connection_type VARCHAR(50),
+    region VARCHAR(50),
+    state VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -63,8 +66,6 @@ CREATE TABLE inverters (
     total_capacity_mw NUMERIC(10, 3) NOT NULL,
     pooling_station VARCHAR(255),
     owner VARCHAR(100),
-    efficiency_percent NUMERIC(5, 2) CHECK (efficiency_percent >= 0 AND efficiency_percent <= 100), -- Nullable
-    last_maintenance_date DATE,
     lvrt JSONB, -- Low Voltage Ride Through settings
     hvrt JSONB, -- High Voltage Ride Through settings
     history JSONB, -- Audit history of protection settings revisions

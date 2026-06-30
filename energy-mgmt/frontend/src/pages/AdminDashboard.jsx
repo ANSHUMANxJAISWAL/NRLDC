@@ -71,6 +71,16 @@ const AdminDashboard = () => {
 
   // Modals state
   const [plantModal, setPlantModal] = useState({ isOpen: false, type: 'add', data: null });
+  const [plantConnectionType, setPlantConnectionType] = useState('');
+  const [plantRegion, setPlantRegion] = useState('');
+  const [plantState, setPlantState] = useState('');
+
+  // PPC Settings tab states
+  const [ppcSettingsList, setPpcSettingsList] = useState([]);
+  const [ppcMakeFilter, setPpcMakeFilter] = useState('All');
+  const [ppcCompanyFilter, setPpcCompanyFilter] = useState('All');
+  const [ppcSearchQuery, setPpcSearchQuery] = useState('');
+
   const [inverterModal, setInverterModal] = useState({ isOpen: false, type: 'add', data: null });
   const [userModal, setUserModal] = useState({ isOpen: false, type: 'add', data: null });
   const [pwdModal, setPwdModal] = useState({ isOpen: false, userId: null });
@@ -143,6 +153,13 @@ const AdminDashboard = () => {
         const pData = await plantsAPI.getAll();
         setUsers(uData.users);
         setPlants(pData.plants);
+      } else if (activeTab === 'ppc-settings') {
+        const [ppcData, pData] = await Promise.all([
+          ppcPlantsAPI.getAll(),
+          plantsAPI.getAll().catch(() => ({ plants: [] }))
+        ]);
+        setPpcSettingsList(ppcData.ppcPlants || []);
+        setPlants(pData.plants || []);
       } else if (activeTab === 'pooling-stations') {
         const [psData, plantsData] = await Promise.all([
           poolingStationsAPI.getAll(),
@@ -205,6 +222,20 @@ const AdminDashboard = () => {
   }, [invSearch]);
 
   // --- Handlers for Plants ---
+  const handleOpenAddPlant = () => {
+    setPlantConnectionType('');
+    setPlantRegion('');
+    setPlantState('');
+    setPlantModal({ isOpen: true, type: 'add', data: null });
+  };
+
+  const handleOpenEditPlant = (plant) => {
+    setPlantConnectionType(plant.connection_type || '');
+    setPlantRegion(plant.region || '');
+    setPlantState(plant.state || '');
+    setPlantModal({ isOpen: true, type: 'edit', data: plant });
+  };
+
   const handleSavePlant = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -221,6 +252,9 @@ const AdminDashboard = () => {
       company_group: formData.get('company_group') || null,
       pooling_station: selectedStationName || null,
       pooling_station_id,
+      connection_type: formData.get('connection_type') || null,
+      region: formData.get('connection_type') === 'ISTS CONNECTED' ? (formData.get('region') || null) : null,
+      state: formData.get('connection_type') === 'INTRA-STATE CONNECTED' ? (formData.get('state') || null) : null,
     };
 
     try {
@@ -301,8 +335,6 @@ const AdminDashboard = () => {
       total_capacity_mw: total_capacity_mw,
       pooling_station: formData.get('pooling_station') || null,
       owner: formData.get('owner') || null,
-      efficiency_percent: inverterModal.type === 'edit' ? inverterModal.data.efficiency_percent : null,
-      last_maintenance_date: formData.get('last_maintenance_date') || null,
     };
 
     try {
@@ -348,6 +380,41 @@ const AdminDashboard = () => {
       showToast('CSV report downloaded.', 'success');
     } catch (err) {
       showToast('Failed to export CSV report.', 'error');
+    }
+  };
+
+  const handleExportPlantInsightsCSV = () => {
+    try {
+      const headers = ['Plant Name', 'Company Group', 'Location', 'Capacity (MW)', 'Total Inverters', 'Total Inverter Capacity (MW)', 'Inverter Make', 'PPC OEM', 'SVG Make'];
+      const rows = plants.map(p => [
+        p.name,
+        p.company_group || 'N/A',
+        p.location,
+        Number(p.capacity_mw).toFixed(2),
+        p.inverter_count,
+        Number(p.total_inverter_capacity).toFixed(2),
+        p.inverter_makes || '—',
+        p.ppc_oem || '—',
+        p.svg_makes || '—'
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `plant_insights_report_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      logAction('Exported plant insights data as CSV.');
+      showToast('Plant insights CSV report downloaded.', 'success');
+    } catch (err) {
+      showToast('Failed to export plant insights CSV.', 'error');
     }
   };
 
@@ -847,7 +914,22 @@ const AdminDashboard = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                 </svg>
-                Inverters Grid
+                IBR Database
+              </button>
+
+              <button
+                onClick={() => navigate('/admin/dashboard/ppc-settings')}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
+                  activeTab === 'ppc-settings'
+                    ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
+                    : 'hover:bg-slate-800/80 hover:text-white'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                PPC Settings
               </button>
 
               <button
@@ -891,16 +973,6 @@ const AdminDashboard = () => {
                 </svg>
                 Access Permissions
               </button>
-
-              <button
-                onClick={() => setIsFreqPanelOpen(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 hover:bg-slate-800/80 hover:text-white"
-              >
-                <svg className="w-5 h-5 text-slate-450" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Frequency Control
-              </button>
             </nav>
           </div>
 
@@ -932,8 +1004,7 @@ const AdminDashboard = () => {
             <div className="space-y-6">
               {/* Headline */}
               <div>
-                <h2 className="text-2xl font-bold text-slate-800">Overview of ISTS connected Solar/WTG/BESS/Hybrid Plants</h2>
-                <p className="text-sm text-slate-500 font-medium">Real-time status summaries of connected grids</p>
+                <h2 className="text-2xl font-bold text-slate-800">Overview of Solar/WTG/BESS/Hybrid Plants</h2>
               </div>
 
               {/* Stats Card Grid — Row 1 */}
@@ -1085,38 +1156,49 @@ const AdminDashboard = () => {
               {/* TABLE: PLANT INSIGHTS */}
               {overviewSubTab === 'plants' && (
                 <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm overflow-hidden space-y-4">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-800">Operational Insights by Power Plant</h3>
-                    <p className="text-xs text-slate-400 font-semibold">Granular breakdown of operational status and capacities per plant</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-800">Operational Insights by Power Plant</h3>
+                      <p className="text-xs text-slate-400 font-semibold">Granular breakdown of operational status and capacities per plant</p>
+                    </div>
+                    <button
+                      onClick={handleExportPlantInsightsCSV}
+                      className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold rounded-xl text-sm transition-all duration-300 flex items-center gap-2 shadow-sm"
+                    >
+                      <svg className="w-4 h-4 text-slate-450" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Export CSV
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse border border-slate-200">
                       <thead>
-                        <tr className="border-b border-slate-150 text-xs text-slate-450 font-bold uppercase">
-                          <th className="pb-3">Plant Name</th>
-                          <th className="pb-3">Company Group</th>
-                          <th className="pb-3">Location</th>
-                          <th className="pb-3">Capacity (MW)</th>
-                          <th className="pb-3 text-center">Total Inverters</th>
-                          <th className="pb-3 text-center">Total Inverter Capacity (MW)</th>
-                          <th className="pb-3">Inverter Make</th>
-                          <th className="pb-3">PPC OEM</th>
-                          <th className="pb-3">SVG Make</th>
+                        <tr className="bg-slate-50 text-xs text-slate-450 font-bold uppercase">
+                          <th className="p-3 border border-slate-200">Plant Name</th>
+                          <th className="p-3 border border-slate-200">Company Group</th>
+                          <th className="p-3 border border-slate-200">Location</th>
+                          <th className="p-3 border border-slate-200">Capacity (MW)</th>
+                          <th className="p-3 border border-slate-200 text-center">Total Inverters</th>
+                          <th className="p-3 border border-slate-200 text-center">Total Inverter Capacity (MW)</th>
+                          <th className="p-3 border border-slate-200">Inverter Make</th>
+                          <th className="p-3 border border-slate-200">PPC OEM</th>
+                          <th className="p-3 border border-slate-200">SVG Make</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50 text-sm">
+                      <tbody className="divide-y divide-slate-200 text-sm">
                         {plants.map((p) => {
                           return (
                             <tr key={p.id} className="hover:bg-slate-50/50">
-                              <td className="py-3 font-semibold text-slate-800">{p.name}</td>
-                              <td className="py-3 text-slate-600 font-medium">{p.company_group || 'N/A'}</td>
-                              <td className="py-3 text-slate-500">{p.location}</td>
-                              <td className="py-3 font-bold text-slate-700">{Number(p.capacity_mw).toFixed(2)} MW</td>
-                              <td className="py-3 font-bold text-slate-700 text-center">{p.inverter_count}</td>
-                              <td className="py-3 font-bold text-slate-700 text-center">{Number(p.total_inverter_capacity).toFixed(2)} MW</td>
-                              <td className="py-3 text-slate-600 font-medium">{p.inverter_makes || '—'}</td>
-                              <td className="py-3 text-slate-600 font-medium">{p.ppc_oem || '—'}</td>
-                              <td className="py-3 text-slate-600 font-medium">{p.svg_makes || '—'}</td>
+                              <td className="p-3 border border-slate-200 font-semibold text-slate-800">{p.name}</td>
+                              <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.company_group || 'N/A'}</td>
+                              <td className="p-3 border border-slate-200 text-slate-500">{p.location}</td>
+                              <td className="p-3 border border-slate-200 font-bold text-slate-700">{Number(p.capacity_mw).toFixed(2)} MW</td>
+                              <td className="p-3 border border-slate-200 font-bold text-slate-700 text-center">{p.inverter_count}</td>
+                              <td className="p-3 border border-slate-200 font-bold text-slate-700 text-center">{Number(p.total_inverter_capacity).toFixed(2)} MW</td>
+                              <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.inverter_makes || '—'}</td>
+                              <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.ppc_oem || '—'}</td>
+                              <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.svg_makes || '—'}</td>
                             </tr>
                           );
                         })}
@@ -1131,27 +1213,25 @@ const AdminDashboard = () => {
                 <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm overflow-hidden space-y-4">
                   <div>
                     <h3 className="text-base font-bold text-slate-800">Operational Insights by Company Group</h3>
-                    <p className="text-xs text-slate-400 font-semibold">Aggregated metrics, capacities, and SVG makes across all companies</p>
+                    <p className="text-xs text-slate-400 font-semibold">Aggregated metrics, capacities across all companies</p>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse border border-slate-200">
                       <thead>
-                        <tr className="border-b border-slate-150 text-xs text-slate-450 font-bold uppercase">
-                          <th className="pb-3">Company Group Name</th>
-                          <th className="pb-3 text-center">Power Plants</th>
-                          <th className="pb-3">Total Capacity (MW)</th>
-                          <th className="pb-3 text-center">Total Inverters</th>
-                          <th className="pb-3">SVG Make</th>
+                        <tr className="bg-slate-50 text-xs text-slate-450 font-bold uppercase">
+                          <th className="p-3 border border-slate-200">Company Group Name</th>
+                          <th className="p-3 border border-slate-200 text-center">Power Plants</th>
+                          <th className="p-3 border border-slate-200">Total Capacity (MW)</th>
+                          <th className="p-3 border border-slate-200 text-center">Total Inverters</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50 text-sm">
+                      <tbody className="divide-y divide-slate-200 text-sm">
                         {getCompanyInsights().map((c) => (
                           <tr key={c.name} className="hover:bg-slate-50/50">
-                            <td className="py-3 font-semibold text-slate-800">{c.name}</td>
-                            <td className="py-3 text-slate-700 font-bold text-center">{c.plantCount}</td>
-                            <td className="py-3 font-extrabold text-teal-600">{Number(c.capacity_mw).toFixed(2)} MW</td>
-                            <td className="py-3 font-bold text-slate-700 text-center">{c.inverter_count}</td>
-                            <td className="py-3 text-slate-600 font-medium">{c.svg_makes}</td>
+                            <td className="p-3 border border-slate-200 font-semibold text-slate-800">{c.name}</td>
+                            <td className="p-3 border border-slate-200 text-slate-700 font-bold text-center">{c.plantCount}</td>
+                            <td className="p-3 border border-slate-200 font-extrabold text-teal-600">{Number(c.capacity_mw).toFixed(2)} MW</td>
+                            <td className="p-3 border border-slate-200 font-bold text-slate-700 text-center">{c.inverter_count}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1192,7 +1272,7 @@ const AdminDashboard = () => {
                 <h3 className="text-lg font-bold text-slate-800">Plants</h3>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setPlantModal({ isOpen: true, type: 'add', data: null })}
+                    onClick={handleOpenAddPlant}
                     className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm transition-all duration-300"
                   >
                     + Add plant
@@ -1252,7 +1332,7 @@ const AdminDashboard = () => {
                                   Open
                                 </button>
                                 <button
-                                  onClick={() => setPlantModal({ isOpen: true, type: 'edit', data: p })}
+                                  onClick={() => handleOpenEditPlant(p)}
                                   className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all"
                                   title="Edit plant"
                                 >
@@ -1500,8 +1580,7 @@ const AdminDashboard = () => {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800">Inverters Grid Management</h2>
-                  <p className="text-sm text-slate-500 font-medium">Monitor statuses and run diagnostics logs</p>
+                  <h2 className="text-2xl font-bold text-slate-800">IBR Database Management</h2>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -1658,6 +1737,153 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: PPC SETTINGS */}
+          {activeTab === 'ppc-settings' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">PPC Settings Database</h2>
+                  <p className="text-sm text-slate-500 font-medium">Display PPC Setting configuration of plants in grid format</p>
+                </div>
+              </div>
+
+              {/* Filters / Classification */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-5 border border-slate-100 rounded-2xl shadow-sm">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">PPC Make</label>
+                  <select
+                    value={ppcMakeFilter}
+                    onChange={(e) => setPpcMakeFilter(e.target.value)}
+                    className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                  >
+                    {['All', ...new Set(ppcSettingsList.map(p => p.ppc_oem).filter(Boolean))].map(m => (
+                      <option key={m} value={m}>{m === 'All' ? 'All Makes' : m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Company Group</label>
+                  <select
+                    value={ppcCompanyFilter}
+                    onChange={(e) => setPpcCompanyFilter(e.target.value)}
+                    className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                  >
+                    {['All', ...new Set(ppcSettingsList.map(p => p.company_group).filter(Boolean))].map(c => (
+                      <option key={c} value={c}>{c === 'All' ? 'All Company Groups' : c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Search Plant Name</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={ppcSearchQuery}
+                      onChange={(e) => setPpcSearchQuery(e.target.value)}
+                      placeholder="Search by plant name..."
+                      className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                    <svg className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid / Excel format table */}
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden p-6 space-y-4">
+                <div className="overflow-x-auto max-h-[60vh] overflow-y-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-xs text-left border-collapse whitespace-nowrap table-fixed">
+                    <thead className="sticky top-0 bg-slate-100 z-10 font-bold uppercase border-b border-slate-200 text-slate-600">
+                      <tr>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48 sticky left-0 z-20">Plant Name</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Company Group</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Pooling Station</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">WBES Acronym</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-36">Capacity (MW)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">PPC OEM (Make)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Control Mode</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Ref Point</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Ref Voltage (kV)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Voltage Deadband %</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Voltage Droop %</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Max Q Inj (MVAr)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Max Q Abs (MVAr)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Comm Time (ms)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Sampling Time (ms)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Total Exec Time (ms)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Proportional Gain (Kp)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Integral Time Constant (Ti)</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Freq Control Mode</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Freq Deadband</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-40">Freq Droop %</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Power Reduction @ 50.3Hz</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Evacuating Line</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">POI</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-48">Owner</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 text-slate-700 bg-white">
+                      {(() => {
+                        const filtered = ppcSettingsList.filter(item => {
+                          const matchMake = ppcMakeFilter === 'All' || item.ppc_oem === ppcMakeFilter;
+                          const matchCompany = ppcCompanyFilter === 'All' || item.company_group === ppcCompanyFilter;
+                          const matchSearch = !ppcSearchQuery || 
+                            (item.plant_name && item.plant_name.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
+                            (item.ppc_oem && item.ppc_oem.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
+                            (item.company_group && item.company_group.toLowerCase().includes(ppcSearchQuery.toLowerCase()));
+                          return matchMake && matchCompany && matchSearch;
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="25" className="text-center py-8 font-medium text-slate-400">
+                                No PPC configuration records found matching your filters.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return filtered.map((ppc) => (
+                          <tr key={ppc.id} className="hover:bg-slate-50">
+                            <td className="p-3 border border-slate-200 font-semibold text-slate-800 bg-slate-50 sticky left-0 z-10">{ppc.plant_name}</td>
+                            <td className="p-3 border border-slate-200">{ppc.company_group || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.pooling_station_name || '—'}</td>
+                            <td className="p-3 border border-slate-200 font-mono">{ppc.wbes_acronym || '—'}</td>
+                            <td className="p-3 border border-slate-200 font-bold text-slate-800">{ppc.capacity_mw ? `${ppc.capacity_mw} MW` : '—'}</td>
+                            <td className="p-3 border border-slate-200 font-semibold text-slate-700">{ppc.ppc_oem || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_mode_of_control || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_reference_point || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_reference_voltage_kv || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_voltage_deadband_pct || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_voltage_droop_pct || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.max_reactive_power_injection_mvar || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.max_reactive_power_absorption_mvar || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_comm_time_ms ? `${ppc.ppc_comm_time_ms} ms` : '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_sampling_time_ms ? `${ppc.ppc_sampling_time_ms} ms` : '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ppc_total_exec_time_ms || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.kp || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.ti || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.freq_control_mode || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.freq_deadband || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.freq_droop_pct || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.power_reduction_at_50_3hz || '—'}</td>
+                            <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.evacuating_line}>{ppc.evacuating_line || '—'}</td>
+                            <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.poi}>{ppc.poi || '—'}</td>
+                            <td className="p-3 border border-slate-200">{ppc.owner || '—'}</td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -1906,6 +2132,62 @@ const AdminDashboard = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Connection Type</label>
+                    <select
+                      name="connection_type"
+                      value={plantConnectionType}
+                      onChange={(e) => setPlantConnectionType(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select Connection —</option>
+                      <option value="ISTS CONNECTED">ISTS CONNECTED</option>
+                      <option value="INTRA-STATE CONNECTED">INTRA-STATE CONNECTED</option>
+                    </select>
+                  </div>
+                  {plantConnectionType === 'ISTS CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
+                      <select
+                        name="region"
+                        value={plantRegion}
+                        onChange={(e) => setPlantRegion(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                      >
+                        <option value="">— Select Region —</option>
+                        <option value="NORTHERN REGION">NORTHERN REGION</option>
+                        <option value="WESTERN REGION">WESTERN REGION</option>
+                        <option value="SOUTHERN REGION">SOUTHERN REGION</option>
+                        <option value="EASTERN REGION">EASTERN REGION</option>
+                        <option value="NORTH EASTERN REGION">NORTH EASTERN REGION</option>
+                      </select>
+                    </div>
+                  )}
+                  {plantConnectionType === 'INTRA-STATE CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
+                      <select
+                        name="state"
+                        value={plantState}
+                        onChange={(e) => setPlantState(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                      >
+                        <option value="">— Select State —</option>
+                        {[
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
+                        ].map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity (MW)</label>
                     <input
                       type="number"
@@ -2134,31 +2416,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Efficiency %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      name="efficiency_percent"
-                      defaultValue={inverterModal.type === 'edit' ? inverterModal.data.efficiency_percent : ''}
-                      placeholder="e.g. 98.50"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Last Maintenance Date</label>
-                    <input
-                      type="date"
-                      name="last_maintenance_date"
-                      defaultValue={inverterModal.type === 'edit' && inverterModal.data.last_maintenance_date ? new Date(inverterModal.data.last_maintenance_date).toISOString().split('T')[0] : ''}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
-                    />
-                  </div>
-                </div>
 
                 <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
                   <button
@@ -2959,7 +3217,6 @@ const AdminDashboard = () => {
                     ['Rating (MVA)', detailModal.data.rating_mva ? `${detailModal.data.rating_mva} MVA` : '—'],
                     ['Pooling Station', detailModal.data.pooling_station],
                     ['Owner', detailModal.data.owner],
-                    ['Last Maintenance', detailModal.data.last_maintenance_date ? new Date(detailModal.data.last_maintenance_date).toLocaleDateString() : '—'],
                   ].map(([lbl, val]) => (
                     <div key={lbl} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                       <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{lbl}</span>

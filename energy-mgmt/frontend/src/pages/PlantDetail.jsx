@@ -43,6 +43,18 @@ const PlantDetail = () => {
 
   // Modals state
   const [plantModalOpen, setPlantModalOpen] = useState(false);
+  const [editConnectionType, setEditConnectionType] = useState('');
+  const [editRegion, setEditRegion] = useState('');
+  const [editState, setEditState] = useState('');
+
+  const handleOpenEditPlantModal = () => {
+    if (plant) {
+      setEditConnectionType(plant.connection_type || '');
+      setEditRegion(plant.region || '');
+      setEditState(plant.state || '');
+    }
+    setPlantModalOpen(true);
+  };
 
   // Synchronize dynamic capacity inputs
   useEffect(() => {
@@ -123,6 +135,9 @@ const PlantDetail = () => {
       company_group: formData.get('company_group') || null,
       pooling_station: selectedStationName || null,
       pooling_station_id,
+      connection_type: formData.get('connection_type') || null,
+      region: formData.get('connection_type') === 'ISTS CONNECTED' ? (formData.get('region') || null) : null,
+      state: formData.get('connection_type') === 'INTRA-STATE CONNECTED' ? (formData.get('state') || null) : null,
     };
 
     try {
@@ -288,12 +303,6 @@ const PlantDetail = () => {
       k_factor: parseFloat(formData.get('hvrt_k'))
     };
 
-    // SVG specific inputs
-    const extraSvgSettings = typeStr === 'SVG' ? {
-      q_v_droop_percent: parseFloat(formData.get('q_v_droop')),
-      response_time_ms: parseInt(formData.get('response_time'), 10)
-    } : {};
-
     // Generate revision snapshot
     const revision = {
       date_changed: formData.get('date_changed') || new Date().toISOString().split('T')[0],
@@ -302,7 +311,6 @@ const PlantDetail = () => {
       remarks: formData.get('remarks') || '',
       lvrt: updatedLvrt,
       hvrt: updatedHvrt,
-      ...extraSvgSettings
     };
 
     const newHistory = [revision, ...(currentInverter.history || [])];
@@ -317,8 +325,6 @@ const PlantDetail = () => {
       total_capacity_mw: currentInverter.total_capacity_mw,
       pooling_station: currentInverter.pooling_station,
       owner: currentInverter.owner,
-      efficiency_percent: currentInverter.efficiency_percent,
-      last_maintenance_date: currentInverter.last_maintenance_date,
       lvrt: updatedLvrt,
       hvrt: updatedHvrt,
       history: newHistory
@@ -368,8 +374,6 @@ const PlantDetail = () => {
       total_capacity_mw: currentEquipment.total_capacity_mw,
       pooling_station: currentEquipment.pooling_station,
       owner: currentEquipment.owner,
-      efficiency_percent: currentEquipment.efficiency_percent,
-      last_maintenance_date: currentEquipment.last_maintenance_date,
       lvrt: currentEquipment.lvrt,
       hvrt: currentEquipment.hvrt,
       history: updatedHistory
@@ -450,6 +454,8 @@ const PlantDetail = () => {
       freq_droop_pct: formData.get('freq_droop_pct') || '',
       power_reduction_at_50_3hz: hasPowerReduction ? 'Yes' : 'No',
       owner: formData.get('owner') || '',
+      kp: formData.get('kp') !== '' && formData.get('kp') !== null ? parseFloat(formData.get('kp')) : null,
+      ti: formData.get('ti') !== '' && formData.get('ti') !== null ? parseFloat(formData.get('ti')) : null,
     };
 
     // Calculate audit revision
@@ -471,7 +477,9 @@ const PlantDetail = () => {
       freq_deadband: ppcFields.freq_deadband,
       freq_droop_pct: ppcFields.freq_droop_pct,
       power_reduction_at_50_3hz: ppcFields.power_reduction_at_50_3hz,
-      owner: ppcFields.owner
+      owner: ppcFields.owner,
+      kp: ppcFields.kp,
+      ti: ppcFields.ti
     };
 
     const newHistory = [snapshot, ...(ppcData?.history || [])];
@@ -541,7 +549,7 @@ const PlantDetail = () => {
             </div>
             {plant.can_write && (
               <button
-                onClick={() => setPlantModalOpen(true)}
+                onClick={handleOpenEditPlantModal}
                 className="px-4 py-2 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-xl text-xs font-bold transition-all border border-teal-100/50 flex items-center gap-1.5"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -585,6 +593,21 @@ const PlantDetail = () => {
               <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Owner name</span>
               <span className="font-semibold text-slate-700">{plant.owner || '—'}</span>
             </div>
+            <div>
+              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Connection Type</span>
+              <span className="font-semibold text-slate-700">{plant.connection_type || '—'}</span>
+            </div>
+            {plant.connection_type === 'ISTS CONNECTED' ? (
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Region</span>
+                <span className="font-semibold text-slate-700">{plant.region || '—'}</span>
+              </div>
+            ) : plant.connection_type === 'INTRA-STATE CONNECTED' ? (
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">State</span>
+                <span className="font-semibold text-slate-700">{plant.state || '—'}</span>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -1297,28 +1320,7 @@ const PlantDetail = () => {
                 </div>
 
                 <form onSubmit={(e) => handleSaveProtectionSettings(e, 'SVG')} className="space-y-6">
-                  {/* Custom SVG settings panel */}
-                  <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100">SVG Specific parameters</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Q-V Droop (%)</label>
-                        <input
-                          type="number" step="0.01" name="q_v_droop" required
-                          defaultValue={selectedSvgForSettings.history?.[0]?.q_v_droop_percent ?? '4.0'}
-                          className="w-full px-3 py-2 text-sm border border-slate-250 bg-white rounded-xl outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">Response Time (ms)</label>
-                        <input
-                          type="number" name="response_time" required
-                          defaultValue={selectedSvgForSettings.history?.[0]?.response_time_ms ?? '50'}
-                          className="w-full px-3 py-2 text-sm border border-slate-250 bg-white rounded-xl outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
+
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* LVRT Panel */}
@@ -1751,6 +1753,31 @@ const PlantDetail = () => {
                     </div>
                   </div>
 
+                  {/* Control Loop Parameters */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Control Loop Parameters</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Proportional Gain (Kp)</label>
+                        <input
+                          type="number" step="0.001" name="kp"
+                          defaultValue={ppcData?.kp ?? ''}
+                          placeholder="e.g. 1.50"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Integral Time Constant (Ti)</label>
+                        <input
+                          type="number" step="0.001" name="ti"
+                          defaultValue={ppcData?.ti ?? ''}
+                          placeholder="e.g. 0.05"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Frequency control */}
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Frequency control</h4>
@@ -2018,6 +2045,59 @@ const PlantDetail = () => {
                     />
                   </div>
                   <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Connection Type</label>
+                    <select
+                      name="connection_type"
+                      value={editConnectionType}
+                      onChange={(e) => setEditConnectionType(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    >
+                      <option value="">— Select Connection —</option>
+                      <option value="ISTS CONNECTED">ISTS CONNECTED</option>
+                      <option value="INTRA-STATE CONNECTED">INTRA-STATE CONNECTED</option>
+                    </select>
+                  </div>
+                  {editConnectionType === 'ISTS CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
+                      <select
+                        name="region"
+                        value={editRegion}
+                        onChange={(e) => setEditRegion(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      >
+                        <option value="">— Select Region —</option>
+                        <option value="NORTHERN REGION">NORTHERN REGION</option>
+                        <option value="WESTERN REGION">WESTERN REGION</option>
+                        <option value="SOUTHERN REGION">SOUTHERN REGION</option>
+                        <option value="EASTERN REGION">EASTERN REGION</option>
+                        <option value="NORTH EASTERN REGION">NORTH EASTERN REGION</option>
+                      </select>
+                    </div>
+                  )}
+                  {editConnectionType === 'INTRA-STATE CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
+                      <select
+                        name="state"
+                        value={editState}
+                        onChange={(e) => setEditState(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      >
+                        <option value="">— Select State —</option>
+                        {[
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
+                        ].map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
                     <input
                       type="date" name="commissioned_date"
@@ -2103,18 +2183,7 @@ const PlantDetail = () => {
             {/* Inverter/WTG or SVG history preview */}
             {(historyPreviewModal.type === 'inverter' || historyPreviewModal.type === 'svg') && (
               <div className="space-y-6 text-sm text-slate-700">
-                {historyPreviewModal.type === 'svg' && (
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Q-V Droop</span>
-                      <span className="font-bold text-slate-800">{historyPreviewModal.data.q_v_droop_percent ?? '—'} %</span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Response Time</span>
-                      <span className="font-bold text-slate-800">{historyPreviewModal.data.response_time_ms ?? '—'} ms</span>
-                    </div>
-                  </div>
-                )}
+
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* LVRT */}
@@ -2196,6 +2265,8 @@ const PlantDetail = () => {
                     ['Comm time', historyPreviewModal.data.ppc_comm_time_ms ? `${historyPreviewModal.data.ppc_comm_time_ms} ms` : '—'],
                     ['Sampling time', historyPreviewModal.data.ppc_sampling_time_ms ? `${historyPreviewModal.data.ppc_sampling_time_ms} ms` : '—'],
                     ['Total execution time', historyPreviewModal.data.ppc_total_exec_time_ms ? `${historyPreviewModal.data.ppc_total_exec_time_ms} ms` : '—'],
+                    ['Proportional Gain (Kp)', historyPreviewModal.data.kp],
+                    ['Integral Time Constant (Ti)', historyPreviewModal.data.ti],
                     ['Freq control mode', historyPreviewModal.data.freq_control_mode],
                     ['Freq deadband', historyPreviewModal.data.freq_deadband],
                     ['Freq droop', historyPreviewModal.data.freq_droop_pct],
