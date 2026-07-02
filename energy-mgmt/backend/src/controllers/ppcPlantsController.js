@@ -105,7 +105,7 @@ const createPpcPlant = async (req, res) => {
     max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
     ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
     freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
-    kp, ti
+    kp, ti, remarks
   } = req.body;
 
   if (!pooling_station_id || !plant_name) {
@@ -135,11 +135,11 @@ const createPpcPlant = async (req, res) => {
         max_reactive_power_injection_mvar, max_reactive_power_absorption_mvar,
         ppc_comm_time_ms, ppc_sampling_time_ms, ppc_total_exec_time_ms,
         freq_control_mode, freq_deadband, freq_droop_pct, power_reduction_at_50_3hz,
-        kp, ti
+        kp, ti, remarks
       ) VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,
         $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-        $20,$21,$22,$23,$24,$25
+        $20,$21,$22,$23,$24,$25,$26
       ) RETURNING *`,
       [
         pooling_station_id, power_plant_id || null, plant_name, wbes_acronym || null,
@@ -153,6 +153,7 @@ const createPpcPlant = async (req, res) => {
         power_reduction_at_50_3hz || null,
         (kp === '' || kp === null || kp === undefined) ? null : parseFloat(kp),
         (ti === '' || ti === null || ti === undefined) ? null : parseFloat(ti),
+        remarks || null,
       ]
     );
 
@@ -222,7 +223,8 @@ const updatePpcPlant = async (req, res) => {
       pooling_station_id: 'Pooling Station ID',
       power_plant_id: 'Power Plant ID',
       kp: 'Proportional Gain (Kp)',
-      ti: 'Integral Time Constant (Ti)'
+      ti: 'Integral Time Constant (Ti)',
+      remarks: 'Remarks'
     };
 
     for (const [key, label] of Object.entries(fieldsToCompare)) {
@@ -244,7 +246,7 @@ const updatePpcPlant = async (req, res) => {
       'max_reactive_power_injection_mvar', 'max_reactive_power_absorption_mvar',
       'ppc_comm_time_ms', 'ppc_sampling_time_ms', 'ppc_total_exec_time_ms',
       'freq_control_mode', 'freq_deadband', 'freq_droop_pct', 'power_reduction_at_50_3hz',
-      'pooling_station_id', 'power_plant_id', 'kp', 'ti', 'history'
+      'pooling_station_id', 'power_plant_id', 'kp', 'ti', 'history', 'remarks'
     ];
 
     const setClauses = [];

@@ -34,6 +34,12 @@ const main = async () => {
     await client.query(schemaSql);
     console.log('Schema reset complete (all data removed).');
 
+    // 1b. Run Migration (applies schema changes since June 25th)
+    console.log('Running migration.sql to apply database updates...');
+    const migrationSql = fs.readFileSync(path.join(__dirname, '../database/migration.sql'), 'utf8');
+    await client.query(migrationSql);
+    console.log('Migration complete (schema is up-to-date).');
+
     // 2. Generate password hashes
     const salt = await bcrypt.genSalt(10);
     const adminPasswordHash = await bcrypt.hash('Admin@123', salt);

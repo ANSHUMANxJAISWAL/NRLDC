@@ -35,7 +35,7 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [poolingStations, setPoolingStations] = useState([]);
-  
+
   // User creation permissions & role scope tracking states
   const [newUserPerms, setNewUserPerms] = useState([]);
   const [selectedRole, setSelectedRole] = useState('user');
@@ -390,8 +390,8 @@ const AdminDashboard = () => {
         const regionVal = p.connection_type === 'ISTS CONNECTED'
           ? `ISTS-${p.region === 'NORTHERN REGION' ? 'NR' : p.region === 'WESTERN REGION' ? 'WR' : p.region === 'SOUTHERN REGION' ? 'SR' : p.region === 'EASTERN REGION' ? 'ER' : p.region === 'NORTH EASTERN REGION' ? 'NER' : p.region || ''}`
           : p.connection_type === 'INTRA-STATE CONNECTED'
-          ? `INTRA-${p.state || ''}`
-          : '—';
+            ? `INTRA-${p.state || ''}`
+            : '—';
         return [
           p.name,
           p.company_group || 'N/A',
@@ -405,12 +405,12 @@ const AdminDashboard = () => {
           p.svg_makes || '—'
         ];
       });
-      
+
       const csvContent = [
         headers.join(','),
         ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
       ].join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -423,6 +423,76 @@ const AdminDashboard = () => {
       showToast('Plant insights CSV report downloaded.', 'success');
     } catch (err) {
       showToast('Failed to export plant insights CSV.', 'error');
+    }
+  };
+
+  const handleExportPpcSettingsCSV = () => {
+    try {
+      const headers = [
+        'Plant Name', 'Company Group', 'Pooling Station', 'WBES Acronym', 'Capacity (MW)',
+        'PPC OEM (Make)', 'Control Mode', 'Ref Point', 'Ref Voltage (kV)', 'Voltage Deadband %',
+        'Voltage Droop %', 'Max Q Inj (MVAr)', 'Max Q Abs (MVAr)', 'Comm Time (ms)',
+        'Sampling Time (ms)', 'Total Exec Time (ms)', 'Proportional Gain (Kp)', 'Integral Time Constant (Ti)',
+        'Freq Control Mode', 'Freq Deadband', 'Freq Droop %', 'Power Reduction @ 50.3Hz',
+        'Evacuating Line', 'POI', 'Owner', 'Remarks'
+      ];
+      
+      const filtered = ppcSettingsList.filter(item => {
+        const matchMake = ppcMakeFilter === 'All' || item.ppc_oem === ppcMakeFilter;
+        const matchCompany = ppcCompanyFilter === 'All' || item.company_group === ppcCompanyFilter;
+        const matchSearch = !ppcSearchQuery ||
+          (item.plant_name && item.plant_name.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
+          (item.ppc_oem && item.ppc_oem.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
+          (item.company_group && item.company_group.toLowerCase().includes(ppcSearchQuery.toLowerCase()));
+        return matchMake && matchCompany && matchSearch;
+      });
+
+      const rows = filtered.map(ppc => [
+        ppc.plant_name || '—',
+        ppc.company_group || '—',
+        ppc.pooling_station_name || '—',
+        ppc.wbes_acronym || '—',
+        ppc.capacity_mw ? `${ppc.capacity_mw}` : '—',
+        ppc.ppc_oem || '—',
+        ppc.ppc_mode_of_control || '—',
+        ppc.ppc_reference_point || '—',
+        ppc.ppc_reference_voltage_kv || '—',
+        ppc.ppc_voltage_deadband_pct || '—',
+        ppc.ppc_voltage_droop_pct || '—',
+        ppc.max_reactive_power_injection_mvar || '—',
+        ppc.max_reactive_power_absorption_mvar || '—',
+        ppc.ppc_comm_time_ms ? `${ppc.ppc_comm_time_ms}` : '—',
+        ppc.ppc_sampling_time_ms ? `${ppc.ppc_sampling_time_ms}` : '—',
+        ppc.ppc_total_exec_time_ms || '—',
+        ppc.kp || '—',
+        ppc.ti || '—',
+        ppc.freq_control_mode || '—',
+        ppc.freq_deadband || '—',
+        ppc.freq_droop_pct || '—',
+        ppc.power_reduction_at_50_3hz || '—',
+        ppc.evacuating_line || '—',
+        ppc.poi || '—',
+        ppc.owner || '—',
+        ppc.remarks || '—'
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ppc_settings_report_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      logAction('Exported PPC settings database as CSV.');
+      showToast('PPC settings CSV report downloaded.', 'success');
+    } catch (err) {
+      showToast('Failed to export PPC settings CSV.', 'error');
     }
   };
 
@@ -705,7 +775,7 @@ const AdminDashboard = () => {
       const updatedRawPerms = [...(prev.rawUserPerms || [])];
       const matchIdx = updatedRawPerms.findIndex(rp => rp.plant_id === plantId);
       const matching = updatedPerms.find(up => up.plantId === plantId);
-      
+
       if (matchIdx > -1) {
         updatedRawPerms[matchIdx] = {
           ...updatedRawPerms[matchIdx],
@@ -875,7 +945,7 @@ const AdminDashboard = () => {
 
       {/* Main Admin Dashboard Wrapper */}
       <div className="flex-1 flex flex-col md:flex-row">
-        
+
         {/* Sidebar Nav */}
         <aside className="w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0 flex flex-col justify-between border-r border-slate-800">
           <div className="p-4">
@@ -885,11 +955,10 @@ const AdminDashboard = () => {
             <nav className="mt-4 space-y-1">
               <button
                 onClick={() => navigate('/admin/dashboard/overview')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'overview'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'overview'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
@@ -899,11 +968,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/plants')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'plants'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'plants'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -913,11 +981,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/inverters')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'inverters'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'inverters'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
@@ -927,11 +994,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/ppc-settings')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'ppc-settings'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'ppc-settings'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -942,11 +1008,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/pooling-stations')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'pooling-stations'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'pooling-stations'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -956,11 +1021,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/users')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'users'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'users'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -970,11 +1034,10 @@ const AdminDashboard = () => {
 
               <button
                 onClick={() => navigate('/admin/dashboard/permissions')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'permissions'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'permissions'
                     ? 'bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20'
                     : 'hover:bg-slate-800/80 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m-2 4a2 2 0 012 2m-8-3a3 3 0 11-6 0 3 3 0 016 0zm6.3 8.5a6 6 0 01-12.6 0" />
@@ -1083,7 +1146,7 @@ const AdminDashboard = () => {
                             const barWidth = 45;
                             const spacing = Math.min(110, 820 / makesData.length);
                             const x = 70 + idx * spacing;
-                            
+
                             // Scale height: max bar height is 180px
                             const h = (m.count / maxCount) * 180;
                             const y = 250 - h;
@@ -1141,21 +1204,19 @@ const AdminDashboard = () => {
               <div className="flex gap-2 p-1 bg-slate-200/60 border border-slate-300/30 rounded-xl w-fit">
                 <button
                   onClick={() => setOverviewSubTab('plants')}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${
-                    overviewSubTab === 'plants'
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${overviewSubTab === 'plants'
                       ? 'bg-rose-500 text-white shadow-sm'
                       : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                    }`}
                 >
                   Plant-level Insights
                 </button>
                 <button
                   onClick={() => setOverviewSubTab('companies')}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${
-                    overviewSubTab === 'companies'
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${overviewSubTab === 'companies'
                       ? 'bg-rose-500 text-white shadow-sm'
                       : 'text-slate-500 hover:text-slate-700'
-                  }`}
+                    }`}
                 >
                   Company-level Insights
                 </button>
@@ -1166,8 +1227,8 @@ const AdminDashboard = () => {
                 <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm overflow-hidden space-y-4">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="text-base font-bold text-slate-800">Operational Insights by Power Plant</h3>
-                      <p className="text-xs text-slate-400 font-semibold">Granular breakdown of operational status and capacities per plant</p>
+                      <h3 className="text-base font-bold text-slate-800">Details of RE Plants and their elements</h3>
+                      <p className="text-xs text-slate-400 font-semibold">Granular breakdown of each element</p>
                     </div>
                     <button
                       onClick={handleExportPlantInsightsCSV}
@@ -1200,8 +1261,8 @@ const AdminDashboard = () => {
                           const regionVal = p.connection_type === 'ISTS CONNECTED'
                             ? `ISTS-${p.region === 'NORTHERN REGION' ? 'NR' : p.region === 'WESTERN REGION' ? 'WR' : p.region === 'SOUTHERN REGION' ? 'SR' : p.region === 'EASTERN REGION' ? 'ER' : p.region === 'NORTH EASTERN REGION' ? 'NER' : p.region || ''}`
                             : p.connection_type === 'INTRA-STATE CONNECTED'
-                            ? `INTRA-${p.state || ''}`
-                            : '—';
+                              ? `INTRA-${p.state || ''}`
+                              : '—';
                           return (
                             <tr key={p.id} className="hover:bg-slate-50/50">
                               <td className="p-3 border border-slate-200 font-semibold text-slate-800">{p.name}</td>
@@ -1764,6 +1825,15 @@ const AdminDashboard = () => {
                   <h2 className="text-2xl font-bold text-slate-800">PPC Settings Database</h2>
                   <p className="text-sm text-slate-500 font-medium">Display PPC Setting configuration of plants in grid format</p>
                 </div>
+                <button
+                  onClick={handleExportPpcSettingsCSV}
+                  className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 font-semibold rounded-xl text-sm transition-all duration-300 flex items-center gap-2 shadow-sm w-fit self-end sm:self-auto"
+                >
+                  <svg className="w-4 h-4 text-slate-450" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export CSV
+                </button>
               </div>
 
               {/* Filters / Classification */}
@@ -1842,6 +1912,7 @@ const AdminDashboard = () => {
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">Evacuating Line</th>
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">POI</th>
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">Owner</th>
+                        <th className="p-3 border border-slate-200 bg-slate-100 w-64">Remarks</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 text-slate-700 bg-white">
@@ -1849,7 +1920,7 @@ const AdminDashboard = () => {
                         const filtered = ppcSettingsList.filter(item => {
                           const matchMake = ppcMakeFilter === 'All' || item.ppc_oem === ppcMakeFilter;
                           const matchCompany = ppcCompanyFilter === 'All' || item.company_group === ppcCompanyFilter;
-                          const matchSearch = !ppcSearchQuery || 
+                          const matchSearch = !ppcSearchQuery ||
                             (item.plant_name && item.plant_name.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
                             (item.ppc_oem && item.ppc_oem.toLowerCase().includes(ppcSearchQuery.toLowerCase())) ||
                             (item.company_group && item.company_group.toLowerCase().includes(ppcSearchQuery.toLowerCase()));
@@ -1859,7 +1930,7 @@ const AdminDashboard = () => {
                         if (filtered.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="25" className="text-center py-8 font-medium text-slate-400">
+                              <td colSpan="26" className="text-center py-8 font-medium text-slate-400">
                                 No PPC configuration records found matching your filters.
                               </td>
                             </tr>
@@ -1893,6 +1964,7 @@ const AdminDashboard = () => {
                             <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.evacuating_line}>{ppc.evacuating_line || '—'}</td>
                             <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.poi}>{ppc.poi || '—'}</td>
                             <td className="p-3 border border-slate-200">{ppc.owner || '—'}</td>
+                            <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.remarks}>{ppc.remarks || '—'}</td>
                           </tr>
                         ));
                       })()}
@@ -1939,11 +2011,10 @@ const AdminDashboard = () => {
                           <td className="p-4 font-semibold text-slate-800">{u.username}</td>
                           <td className="p-4 text-slate-500 text-xs">{u.email}</td>
                           <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border capitalize ${
-                              u.role === 'admin'
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold border capitalize ${u.role === 'admin'
                                 ? 'bg-rose-50 text-rose-600 border-rose-100'
                                 : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                            }`}>
+                              }`}>
                               {u.role}
                             </span>
                           </td>
@@ -2036,7 +2107,7 @@ const AdminDashboard = () => {
                               Edit Assignments
                             </button>
                           </div>
-                          
+
                           {/* Inner list of permissions */}
                           <UserPermissionsList userId={u.id} showToast={showToast} plants={plants} />
                         </div>
@@ -2188,10 +2259,10 @@ const AdminDashboard = () => {
                       >
                         <option value="">— Select State —</option>
                         {[
-                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
-                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
-                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
-                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
                           'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
                         ].map(st => (
                           <option key={st} value={st}>{st}</option>
@@ -2917,19 +2988,17 @@ const AdminDashboard = () => {
                   {permPanel.userPerms.map((up) => (
                     <div
                       key={up.plantId}
-                      className={`flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-200 ${
-                        up.canWrite
+                      className={`flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all duration-200 ${up.canWrite
                           ? 'bg-rose-50/60 border-rose-200'
                           : up.canRead
-                          ? 'bg-teal-50/60 border-teal-200'
-                          : 'bg-slate-50 border-slate-100'
-                      }`}
+                            ? 'bg-teal-50/60 border-teal-200'
+                            : 'bg-slate-50 border-slate-100'
+                        }`}
                     >
                       <div className="flex-1 min-w-0 mr-2">
                         <span className="text-sm font-semibold text-slate-800 block truncate">{up.plantName}</span>
-                        <span className={`text-xs font-bold mt-0.5 inline-block ${
-                          up.canWrite ? 'text-rose-500' : up.canRead ? 'text-teal-600' : 'text-slate-400'
-                        }`}>
+                        <span className={`text-xs font-bold mt-0.5 inline-block ${up.canWrite ? 'text-rose-500' : up.canRead ? 'text-teal-600' : 'text-slate-400'
+                          }`}>
                           {up.canWrite ? '● Read & Write' : up.canRead ? '● Read Only' : '○ No Access'}
                         </span>
                       </div>
@@ -2951,13 +3020,11 @@ const AdminDashboard = () => {
                         <label className="flex flex-col items-center gap-1 cursor-pointer select-none">
                           <div
                             onClick={() => handleTogglePermCheckbox(up.plantId, 'canRead')}
-                            className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer ${
-                              up.canRead ? 'bg-teal-500' : 'bg-slate-200'
-                            }`}
+                            className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer ${up.canRead ? 'bg-teal-500' : 'bg-slate-200'
+                              }`}
                           >
-                            <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all duration-300 ${
-                              up.canRead ? 'left-5' : 'left-0.5'
-                            }`} />
+                            <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all duration-300 ${up.canRead ? 'left-5' : 'left-0.5'
+                              }`} />
                           </div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Read</span>
                         </label>
@@ -2966,13 +3033,11 @@ const AdminDashboard = () => {
                         <label className="flex flex-col items-center gap-1 cursor-pointer select-none">
                           <div
                             onClick={() => handleTogglePermCheckbox(up.plantId, 'canWrite')}
-                            className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer ${
-                              up.canWrite ? 'bg-rose-500' : 'bg-slate-200'
-                            }`}
+                            className={`w-10 h-5 rounded-full transition-all duration-300 relative cursor-pointer ${up.canWrite ? 'bg-rose-500' : 'bg-slate-200'
+                              }`}
                           >
-                            <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all duration-300 ${
-                              up.canWrite ? 'left-5' : 'left-0.5'
-                            }`} />
+                            <div className={`w-4 h-4 bg-white rounded-full shadow absolute top-0.5 transition-all duration-300 ${up.canWrite ? 'left-5' : 'left-0.5'
+                              }`} />
                           </div>
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Write</span>
                         </label>
@@ -3070,7 +3135,7 @@ const AdminDashboard = () => {
                 )}
               </div>
             </div>
-            
+
             <div className="pt-4 border-t border-slate-800/80">
               <button
                 onClick={() => setIsLogDrawerOpen(false)}
@@ -3110,13 +3175,13 @@ const AdminDashboard = () => {
                   const groups = getGroupedFreqInverters();
                   return ['ROCOF', 'df/dt', 'None'].map(mode => {
                     const list = groups[mode] || [];
-                    const badgeColor = 
-                      mode === 'ROCOF' 
-                        ? 'bg-teal-50 text-teal-700 border-teal-100' 
+                    const badgeColor =
+                      mode === 'ROCOF'
+                        ? 'bg-teal-50 text-teal-700 border-teal-100'
                         : mode === 'df/dt'
-                        ? 'bg-blue-50 text-blue-700 border-blue-100'
-                        : 'bg-slate-100 text-slate-600 border-slate-200';
-                        
+                          ? 'bg-blue-50 text-blue-700 border-blue-100'
+                          : 'bg-slate-100 text-slate-600 border-slate-200';
+
                     return (
                       <div key={mode} className="space-y-2">
                         <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
@@ -3180,8 +3245,8 @@ const AdminDashboard = () => {
                   {detailModal.type === 'inverter'
                     ? `Inverter Group: ${detailModal.data.make} ${detailModal.data.model}`
                     : detailModal.type === 'plant'
-                    ? `Power Plant: ${detailModal.data.name}`
-                    : `RE Plant Controller: ${detailModal.data.plant_name}`}
+                      ? `Power Plant: ${detailModal.data.name}`
+                      : `RE Plant Controller: ${detailModal.data.plant_name}`}
                 </h3>
               </div>
               <button
@@ -3407,7 +3472,7 @@ const AdminDashboard = () => {
 // Helper internal component to render active permissions list for each user dynamically
 const UserPermissionsList = ({ userId, showToast, plants }) => {
   const [permsList, setPermsList] = useState([]);
-  
+
   useEffect(() => {
     const fetchPerms = async () => {
       try {
@@ -3431,11 +3496,10 @@ const UserPermissionsList = ({ userId, showToast, plants }) => {
       {permsList.map((p) => (
         <span
           key={p.id}
-          className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-            p.can_write
+          className={`px-3 py-1 rounded-full text-xs font-semibold border ${p.can_write
               ? 'bg-rose-50/20 text-rose-600 border-rose-500/20'
               : 'bg-teal-50/20 text-teal-600 border-teal-500/20'
-          }`}
+            }`}
         >
           {p.plant_name}: {p.can_write ? 'Read & Write' : 'Read Only'}
         </span>

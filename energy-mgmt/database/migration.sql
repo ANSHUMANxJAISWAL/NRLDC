@@ -49,3 +49,6 @@ ALTER TABLE inverters DROP COLUMN IF EXISTS last_maintenance_date;
 -- 12. Add Kp and Ti parameters to ppc_plants table
 ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS kp NUMERIC;
 ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS ti NUMERIC;
+
+-- 13. Add remarks column to ppc_plants table
+ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS remarks TEXT;

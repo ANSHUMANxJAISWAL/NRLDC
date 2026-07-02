@@ -83,7 +83,7 @@ const PlantDetail = () => {
       setPlant(data.plant);
       setInverters(data.inverters);
       setPoolingStations(psData.poolingStations || []);
-      
+
       // Fetch PPC details
       try {
         const ppcRes = await ppcPlantsAPI.getAll({ power_plant_id: id });
@@ -223,10 +223,10 @@ const PlantDetail = () => {
     try {
       const res = await invertersAPI.create(invData);
       showToast('Equipment Master created. Continue to protection settings.', 'success');
-      
+
       // Auto-focus protection settings Screen 3
       setSelectedInverterForSettings(res.inverter);
-      
+
       // Clear form calculations state
       setInvCount('');
       setInvUnitCap('');
@@ -260,10 +260,10 @@ const PlantDetail = () => {
     try {
       const res = await invertersAPI.create(svgData);
       showToast('SVG Master created. Continue to protection settings.', 'success');
-      
+
       // Focus protection settings Screen 3
       setSelectedSvgForSettings(res.inverter);
-      
+
       // Clear values
       setSvgCount('');
       setSvgUnitCap('');
@@ -333,7 +333,7 @@ const PlantDetail = () => {
     try {
       await invertersAPI.update(currentInverter.id, updatedData);
       showToast('Settings saved as new compliant version.', 'success');
-      
+
       // Return to Master View
       if (typeStr === 'SVG') {
         setSelectedSvgForSettings(null);
@@ -456,6 +456,7 @@ const PlantDetail = () => {
       owner: formData.get('owner') || '',
       kp: formData.get('kp') !== '' && formData.get('kp') !== null ? parseFloat(formData.get('kp')) : null,
       ti: formData.get('ti') !== '' && formData.get('ti') !== null ? parseFloat(formData.get('ti')) : null,
+      remarks: formData.get('remarks') || '',
     };
 
     // Calculate audit revision
@@ -479,7 +480,8 @@ const PlantDetail = () => {
       power_reduction_at_50_3hz: ppcFields.power_reduction_at_50_3hz,
       owner: ppcFields.owner,
       kp: ppcFields.kp,
-      ti: ppcFields.ti
+      ti: ppcFields.ti,
+      remarks: ppcFields.remarks
     };
 
     const newHistory = [snapshot, ...(ppcData?.history || [])];
@@ -520,7 +522,7 @@ const PlantDetail = () => {
       <Navbar />
 
       <main className="flex-1 p-6 md:p-8 max-w-7xl w-full mx-auto space-y-6">
-        
+
         {/* Navigation Breadcrumb */}
         <nav className="text-sm font-semibold text-slate-400 select-none flex items-center gap-2">
           <button onClick={() => navigate('/dashboard')} className="hover:text-teal-600 transition-colors">
@@ -586,7 +588,7 @@ const PlantDetail = () => {
               <span className="font-semibold text-slate-700 truncate block max-w-[200px]" title={ppcData?.evacuating_line}>{ppcData?.evacuating_line || '—'}</span>
             </div>
             <div>
-              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">POI Reactive capability</span>
+              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">POI (Point of Interconnection)</span>
               <span className="font-semibold text-slate-700 block max-w-[200px]" title={ppcData?.poi}>{ppcData?.poi || '—'}</span>
             </div>
             <div>
@@ -615,25 +617,22 @@ const PlantDetail = () => {
         <div className="flex gap-2 p-1 bg-slate-200/60 border border-slate-350/20 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('inverters')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${
-              activeTab === 'inverters' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${activeTab === 'inverters' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             Inverters / WTGs / BESS PCS
           </button>
           <button
             onClick={() => setActiveTab('svgs')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${
-              activeTab === 'svgs' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${activeTab === 'svgs' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             SVGs (Static Var Generators)
           </button>
           <button
             onClick={() => setActiveTab('ppc')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${
-              activeTab === 'ppc' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-300 ${activeTab === 'ppc' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             PPC Settings Configuration
           </button>
@@ -1644,7 +1643,7 @@ const PlantDetail = () => {
             ) : (
               <form onSubmit={handleSavePpcSettings} className="space-y-6">
                 <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-                  
+
                   {/* Control mode & reference */}
                   <div className="space-y-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest pb-1 border-b border-slate-100">Control mode & reference</h4>
@@ -1879,6 +1878,16 @@ const PlantDetail = () => {
                         </div>
                       </div>
                     </div>
+                    <div className="text-sm mt-4">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
+                      <textarea
+                        name="remarks"
+                        defaultValue={ppcData?.remarks || ''}
+                        placeholder="Add additional remarks or notes here..."
+                        rows={3}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                      />
+                    </div>
                   </div>
 
                   {/* Form Buttons */}
@@ -2086,10 +2095,10 @@ const PlantDetail = () => {
                       >
                         <option value="">— Select State —</option>
                         {[
-                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
-                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
-                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
-                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
                           'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
                         ].map(st => (
                           <option key={st} value={st}>{st}</option>
@@ -2127,7 +2136,7 @@ const PlantDetail = () => {
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">POI Reactive power capability / connection</label>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">POI (Point of Interconnection)</label>
                       <input
                         type="text" name="poi" defaultValue={ppcData?.poi || ''}
                         placeholder="e.g. 400kV Bikaner(PG)"
