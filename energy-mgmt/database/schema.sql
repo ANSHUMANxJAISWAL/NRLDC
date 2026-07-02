@@ -18,6 +18,8 @@ CREATE TYPE user_role AS ENUM ('admin', 'user');
 CREATE TABLE pooling_stations (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL UNIQUE,
+  login_id VARCHAR(100) NOT NULL UNIQUE,        -- e.g. bikanerpg@energymgmt
+  password_hash TEXT NOT NULL,
   total_capacity_mw NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -29,6 +31,7 @@ CREATE TABLE users (
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role user_role DEFAULT 'user' NOT NULL,
+    pooling_station_id INT REFERENCES pooling_stations(id) ON DELETE SET NULL,
     two_factor_code VARCHAR(6),
     two_factor_expires TIMESTAMP WITH TIME ZONE,
     reset_code VARCHAR(6),
@@ -43,13 +46,9 @@ CREATE TABLE power_plants (
     owner VARCHAR(100),
     company_group VARCHAR(100),
     pooling_station VARCHAR(255),
-    pooling_station_id INTEGER REFERENCES pooling_stations(id) ON DELETE SET NULL,
     capacity_mw NUMERIC(10, 3) NOT NULL,
     commissioned_date DATE, -- Nullable to handle missing dates in real data
     location VARCHAR(255) NOT NULL,
-    connection_type VARCHAR(50),
-    region VARCHAR(50),
-    state VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
@@ -66,6 +65,8 @@ CREATE TABLE inverters (
     total_capacity_mw NUMERIC(10, 3) NOT NULL,
     pooling_station VARCHAR(255),
     owner VARCHAR(100),
+    efficiency_percent NUMERIC(5, 2) CHECK (efficiency_percent >= 0 AND efficiency_percent <= 100), -- Nullable
+    last_maintenance_date DATE,
     lvrt JSONB, -- Low Voltage Ride Through settings
     hvrt JSONB, -- High Voltage Ride Through settings
     history JSONB, -- Audit history of protection settings revisions
