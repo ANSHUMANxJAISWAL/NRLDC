@@ -89,7 +89,7 @@ const UserDashboard = () => {
       await plantsAPI.create(plantData);
       showToast('Power plant created successfully.', 'success');
       setPlantModal({ isOpen: false, type: 'add', data: null });
-      
+
       // Reload plants
       const data = await plantsAPI.getAll();
       setPlants(data.plants);
@@ -139,11 +139,10 @@ const UserDashboard = () => {
             <nav className="mt-4 space-y-1">
               <button
                 onClick={() => setActiveTab('my-plants')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'my-plants'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'my-plants'
                     ? 'bg-teal-500/10 text-teal-300 font-bold border border-teal-500/20'
                     : 'hover:bg-teal-900/60 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -153,11 +152,10 @@ const UserDashboard = () => {
 
               <button
                 onClick={() => setActiveTab('profile')}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${
-                  activeTab === 'profile'
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl transition-all-300 ${activeTab === 'profile'
                     ? 'bg-teal-500/10 text-teal-300 font-bold border border-teal-500/20'
                     : 'hover:bg-teal-900/60 hover:text-white'
-                }`}
+                  }`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -187,7 +185,7 @@ const UserDashboard = () => {
                 </div>
                 <button
                   onClick={handleOpenAddPlant}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm transition-all duration-300 shadow-md shadow-teal-50"
+                  className="px-4 py-2 bg-teal-650 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm transition-all duration-300 shadow-md shadow-teal-50"
                 >
                   + Add plant
                 </button>
@@ -272,7 +270,7 @@ const UserDashboard = () => {
 
               {/* Profile Details Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
+
                 {/* Account details */}
                 <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
                   <h3 className="text-base font-bold text-slate-800 pb-3 border-b border-slate-100">Profile Details</h3>
@@ -479,10 +477,10 @@ const UserDashboard = () => {
                       >
                         <option value="">— Select State —</option>
                         {[
-                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
-                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
-                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
-                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
                           'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
                         ].map(st => (
                           <option key={st} value={st}>{st}</option>
