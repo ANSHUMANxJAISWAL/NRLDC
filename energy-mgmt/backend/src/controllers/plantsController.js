@@ -128,7 +128,7 @@ const getPlantById = async (req, res) => {
   }
 };
 
-// POST /api/plants - create plant (Admin only)
+// POST /api/plants - create plant (Admin or standard user)
 const createPlant = async (req, res) => {
   const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state } = req.body;
 
@@ -136,25 +136,39 @@ const createPlant = async (req, res) => {
     return res.status(400).json({ error: 'Required fields: name, location, capacity_mw' });
   }
 
+  // If regular user, force company_group to their username
+  const finalCompanyGroup = req.user.role === 'admin' ? (company_group || null) : req.user.username;
+
   try {
     const result = await db.query(
       `INSERT INTO power_plants (name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
        RETURNING *`,
-      [name, location, capacity_mw, commissioned_date || null, owner || null, company_group || null, pooling_station || null, pooling_station_id ? parseInt(pooling_station_id, 10) : null, connection_type || null, region || null, state || null]
+      [name, location, capacity_mw, commissioned_date || null, owner || null, finalCompanyGroup, pooling_station || null, pooling_station_id ? parseInt(pooling_station_id, 10) : null, connection_type || null, region || null, state || null]
     );
+
+    const createdPlant = result.rows[0];
+
+    // For standard users, auto-grant read/write permissions to the created plant
+    if (req.user.role !== 'admin') {
+      await db.query(
+        `INSERT INTO user_plant_permissions (user_id, plant_id, can_read, can_write) 
+         VALUES ($1, $2, TRUE, TRUE)`,
+        [req.user.id, createdPlant.id]
+      );
+    }
 
     // Log creation
     const username = req.user.username || req.user.email;
     await db.query(
       `INSERT INTO system_logs (user_id, username, action, details) VALUES ($1, $2, $3, $4)`,
-      [req.user.id, username, `Create Plant (ID: ${result.rows[0].id})`, `Registered power plant "${name}" with capacity ${capacity_mw} MW.`
+      [req.user.id, username, `Create Plant (ID: ${createdPlant.id})`, `Registered power plant "${name}" with capacity ${capacity_mw} MW.`
       ]
     );
 
     return res.status(201).json({
       message: 'Power plant created successfully',
-      plant: result.rows[0]
+      plant: createdPlant
     });
   } catch (err) {
     console.error('Error creating plant:', err);

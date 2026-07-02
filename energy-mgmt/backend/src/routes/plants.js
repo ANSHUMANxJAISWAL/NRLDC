@@ -14,8 +14,8 @@ router.get('/', plantsController.getAllPlants);
 // GET plant details (requires read permission)
 router.get('/:id', requirePlantPermission('read'), plantsController.getPlantById);
 
-// Admin-only endpoints for create/delete, but write-permitted operator for edit
-router.post('/', requireRole('admin'), plantsController.createPlant);
+// Allow all authenticated users to create, delete is admin-only, edit requires write permission
+router.post('/', plantsController.createPlant);
 router.put('/:id', requirePlantPermission('write'), plantsController.updatePlant);
 router.delete('/:id', requireRole('admin'), plantsController.deletePlant);
 

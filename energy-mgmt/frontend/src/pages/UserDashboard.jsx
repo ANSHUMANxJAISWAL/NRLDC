@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Navbar from '../components/Navbar';
-import { plantsAPI, authAPI } from '../services/api';
+import { plantsAPI, authAPI, poolingStationsAPI } from '../services/api';
 
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState('my-plants'); // 'my-plants' or 'profile'
@@ -11,6 +11,13 @@ const UserDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [pwdSubmitting, setPwdSubmitting] = useState(false);
+
+  // States for adding power plants
+  const [poolingStations, setPoolingStations] = useState([]);
+  const [plantModal, setPlantModal] = useState({ isOpen: false, type: 'add', data: null });
+  const [plantConnectionType, setPlantConnectionType] = useState('');
+  const [plantRegion, setPlantRegion] = useState('');
+  const [plantState, setPlantState] = useState('');
 
   const { user, logout } = useAuth();
   const { showToast } = useToast();
@@ -35,6 +42,63 @@ const UserDashboard = () => {
       fetchUserPlants();
     }
   }, [activeTab, showToast]);
+
+  // Load pooling stations for creation
+  useEffect(() => {
+    const fetchPoolingStations = async () => {
+      try {
+        const data = await poolingStationsAPI.getAll();
+        setPoolingStations(data.poolingStations || []);
+      } catch (err) {
+        console.error('Error loading pooling stations:', err);
+      }
+    };
+    fetchPoolingStations();
+  }, []);
+
+  const handleOpenAddPlant = () => {
+    setPlantConnectionType('');
+    setPlantRegion('');
+    setPlantState('');
+    setPlantModal({ isOpen: true, type: 'add', data: null });
+  };
+
+  const handleSavePlant = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const selectedStationName = formData.get('pooling_station') || '';
+    const matchingStation = poolingStations.find(s => s.name === selectedStationName);
+    const pooling_station_id = matchingStation ? matchingStation.id : null;
+
+    const plantData = {
+      name: formData.get('name'),
+      location: formData.get('location'),
+      capacity_mw: parseFloat(formData.get('capacity_mw')),
+      commissioned_date: formData.get('commissioned_date') || null,
+      owner: formData.get('owner') || null,
+      company_group: user.username,
+      pooling_station: selectedStationName || null,
+      pooling_station_id,
+      connection_type: formData.get('connection_type') || null,
+      region: formData.get('connection_type') === 'ISTS CONNECTED' ? (formData.get('region') || null) : null,
+      state: formData.get('connection_type') === 'INTRA-STATE CONNECTED' ? (formData.get('state') || null) : null,
+    };
+
+    setLoading(true);
+    try {
+      await plantsAPI.create(plantData);
+      showToast('Power plant created successfully.', 'success');
+      setPlantModal({ isOpen: false, type: 'add', data: null });
+      
+      // Reload plants
+      const data = await plantsAPI.getAll();
+      setPlants(data.plants);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to save power plant.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -116,9 +180,17 @@ const UserDashboard = () => {
           {/* TAB: MY PLANTS (CARD GRID) */}
           {activeTab === 'my-plants' && (
             <div className="space-y-6 animate-fade-in">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800">My Assigned Power Plants</h2>
-                <p className="text-sm text-slate-500 font-medium">Grid systems currently under your operational scope</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">My Assigned Power Plants</h2>
+                  <p className="text-sm text-slate-500 font-medium">Grid systems currently under your operational scope</p>
+                </div>
+                <button
+                  onClick={handleOpenAddPlant}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm transition-all duration-300 shadow-md shadow-teal-50"
+                >
+                  + Add plant
+                </button>
               </div>
 
               {plants.length === 0 ? (
@@ -273,6 +345,182 @@ const UserDashboard = () => {
           )}
         </main>
       </div>
+
+      {/* MODAL: PLANT ADD */}
+      {plantModal.isOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-lg w-full p-6 animate-scale-up">
+            <h3 className="text-lg font-bold text-slate-800 mb-4 capitalize">
+              Add Power Plant
+            </h3>
+            {poolingStations.length === 0 ? (
+              <div className="text-center py-6">
+                <span className="text-4xl">⚠️</span>
+                <p className="mt-4 text-slate-700 font-bold">
+                  No pooling stations are registered in the system.
+                </p>
+                <p className="text-xs text-slate-400 mt-1 mb-6">
+                  An administrator must register a pooling station before you can create a power plant.
+                </p>
+                <div className="flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPlantModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSavePlant} className="space-y-4 font-sans">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Plant Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      placeholder="e.g. Bhadla Solar"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Location / Area</label>
+                    <input
+                      type="text"
+                      name="location"
+                      required
+                      placeholder="e.g. Jodhpur, Rajasthan"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Pooling Station</label>
+                    <select
+                      name="pooling_station"
+                      required
+                      defaultValue=""
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select Pooling Station —</option>
+                      {poolingStations.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Capacity (MW)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      name="capacity_mw"
+                      required
+                      placeholder="150.00"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Connection Type</label>
+                    <select
+                      name="connection_type"
+                      value={plantConnectionType}
+                      onChange={(e) => setPlantConnectionType(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                    >
+                      <option value="">— Select Connection —</option>
+                      <option value="ISTS CONNECTED">ISTS CONNECTED</option>
+                      <option value="INTRA-STATE CONNECTED">INTRA-STATE CONNECTED</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioned Date</label>
+                    <input
+                      type="date"
+                      name="commissioned_date"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {plantConnectionType === 'ISTS CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Region</label>
+                      <select
+                        name="region"
+                        value={plantRegion}
+                        onChange={(e) => setPlantRegion(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                      >
+                        <option value="">— Select Region —</option>
+                        <option value="NORTHERN REGION">NORTHERN REGION</option>
+                        <option value="WESTERN REGION">WESTERN REGION</option>
+                        <option value="SOUTHERN REGION">SOUTHERN REGION</option>
+                        <option value="EASTERN REGION">EASTERN REGION</option>
+                        <option value="NORTH EASTERN REGION">NORTH EASTERN REGION</option>
+                      </select>
+                    </div>
+                  )}
+                  {plantConnectionType === 'INTRA-STATE CONNECTED' && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">State</label>
+                      <select
+                        name="state"
+                        value={plantState}
+                        onChange={(e) => setPlantState(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                      >
+                        <option value="">— Select State —</option>
+                        {[
+                          'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 
+                          'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 
+                          'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 
+                          'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 
+                          'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Jammu and Kashmir'
+                        ].map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Owner / Operator</label>
+                    <input
+                      type="text"
+                      name="owner"
+                      placeholder="e.g. Acme Solar"
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPlantModal({ isOpen: false, type: 'add', data: null })}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-rose-100"
+                  >
+                    Create Plant
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

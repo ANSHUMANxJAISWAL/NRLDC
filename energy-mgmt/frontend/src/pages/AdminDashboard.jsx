@@ -385,18 +385,26 @@ const AdminDashboard = () => {
 
   const handleExportPlantInsightsCSV = () => {
     try {
-      const headers = ['Plant Name', 'Company Group', 'Location', 'Capacity (MW)', 'Total Inverters', 'Total Inverter Capacity (MW)', 'Inverter Make', 'PPC OEM', 'SVG Make'];
-      const rows = plants.map(p => [
-        p.name,
-        p.company_group || 'N/A',
-        p.location,
-        Number(p.capacity_mw).toFixed(2),
-        p.inverter_count,
-        Number(p.total_inverter_capacity).toFixed(2),
-        p.inverter_makes || '—',
-        p.ppc_oem || '—',
-        p.svg_makes || '—'
-      ]);
+      const headers = ['Plant Name', 'Company Group', 'Location', 'Region', 'Capacity (MW)', 'Total Inverters', 'Total Inverter Capacity (MW)', 'Inverter Make', 'PPC OEM', 'SVG Make'];
+      const rows = plants.map(p => {
+        const regionVal = p.connection_type === 'ISTS CONNECTED'
+          ? `ISTS-${p.region === 'NORTHERN REGION' ? 'NR' : p.region === 'WESTERN REGION' ? 'WR' : p.region === 'SOUTHERN REGION' ? 'SR' : p.region === 'EASTERN REGION' ? 'ER' : p.region === 'NORTH EASTERN REGION' ? 'NER' : p.region || ''}`
+          : p.connection_type === 'INTRA-STATE CONNECTED'
+          ? `INTRA-${p.state || ''}`
+          : '—';
+        return [
+          p.name,
+          p.company_group || 'N/A',
+          p.location,
+          regionVal,
+          Number(p.capacity_mw).toFixed(2),
+          p.inverter_count,
+          Number(p.total_inverter_capacity).toFixed(2),
+          p.inverter_makes || '—',
+          p.ppc_oem || '—',
+          p.svg_makes || '—'
+        ];
+      });
       
       const csvContent = [
         headers.join(','),
@@ -1178,6 +1186,7 @@ const AdminDashboard = () => {
                           <th className="p-3 border border-slate-200">Plant Name</th>
                           <th className="p-3 border border-slate-200">Company Group</th>
                           <th className="p-3 border border-slate-200">Location</th>
+                          <th className="p-3 border border-slate-200">Region</th>
                           <th className="p-3 border border-slate-200">Capacity (MW)</th>
                           <th className="p-3 border border-slate-200 text-center">Total Inverters</th>
                           <th className="p-3 border border-slate-200 text-center">Total Inverter Capacity (MW)</th>
@@ -1188,11 +1197,17 @@ const AdminDashboard = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-sm">
                         {plants.map((p) => {
+                          const regionVal = p.connection_type === 'ISTS CONNECTED'
+                            ? `ISTS-${p.region === 'NORTHERN REGION' ? 'NR' : p.region === 'WESTERN REGION' ? 'WR' : p.region === 'SOUTHERN REGION' ? 'SR' : p.region === 'EASTERN REGION' ? 'ER' : p.region === 'NORTH EASTERN REGION' ? 'NER' : p.region || ''}`
+                            : p.connection_type === 'INTRA-STATE CONNECTED'
+                            ? `INTRA-${p.state || ''}`
+                            : '—';
                           return (
                             <tr key={p.id} className="hover:bg-slate-50/50">
                               <td className="p-3 border border-slate-200 font-semibold text-slate-800">{p.name}</td>
                               <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.company_group || 'N/A'}</td>
                               <td className="p-3 border border-slate-200 text-slate-500">{p.location}</td>
+                              <td className="p-3 border border-slate-200 text-slate-600 font-medium">{regionVal}</td>
                               <td className="p-3 border border-slate-200 font-bold text-slate-700">{Number(p.capacity_mw).toFixed(2)} MW</td>
                               <td className="p-3 border border-slate-200 font-bold text-slate-700 text-center">{p.inverter_count}</td>
                               <td className="p-3 border border-slate-200 font-bold text-slate-700 text-center">{Number(p.total_inverter_capacity).toFixed(2)} MW</td>
@@ -2850,7 +2865,6 @@ const AdminDashboard = () => {
                 onChange={(e) => handleChangePermCompany(e.target.value)}
                 className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-rose-500 cursor-pointer"
               >
-                <option value="">-- Select Company Group --</option>
                 {permPanel.allCompanyGroups.map(g => (
                   <option key={g} value={g}>{g}</option>
                 ))}
