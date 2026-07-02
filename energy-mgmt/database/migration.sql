@@ -50,5 +50,5 @@ ALTER TABLE inverters DROP COLUMN IF EXISTS last_maintenance_date;
 ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS kp NUMERIC;
 ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS ti NUMERIC;
 
--- 13. Add remarks column to ppc_plants table
-ALTER TABLE ppc_plants ADD COLUMN IF NOT EXISTS remarks TEXT;
+-- 13. Add remarks column to power_plants table
+ALTER TABLE power_plants ADD COLUMN IF NOT EXISTS remarks TEXT;

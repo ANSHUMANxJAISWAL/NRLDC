@@ -138,6 +138,7 @@ const PlantDetail = () => {
       connection_type: formData.get('connection_type') || null,
       region: formData.get('connection_type') === 'ISTS CONNECTED' ? (formData.get('region') || null) : null,
       state: formData.get('connection_type') === 'INTRA-STATE CONNECTED' ? (formData.get('state') || null) : null,
+      remarks: formData.get('remarks') || null,
     };
 
     try {
@@ -456,7 +457,6 @@ const PlantDetail = () => {
       owner: formData.get('owner') || '',
       kp: formData.get('kp') !== '' && formData.get('kp') !== null ? parseFloat(formData.get('kp')) : null,
       ti: formData.get('ti') !== '' && formData.get('ti') !== null ? parseFloat(formData.get('ti')) : null,
-      remarks: formData.get('remarks') || '',
     };
 
     // Calculate audit revision
@@ -480,8 +480,7 @@ const PlantDetail = () => {
       power_reduction_at_50_3hz: ppcFields.power_reduction_at_50_3hz,
       owner: ppcFields.owner,
       kp: ppcFields.kp,
-      ti: ppcFields.ti,
-      remarks: ppcFields.remarks
+      ti: ppcFields.ti
     };
 
     const newHistory = [snapshot, ...(ppcData?.history || [])];
@@ -610,6 +609,10 @@ const PlantDetail = () => {
                 <span className="font-semibold text-slate-700">{plant.state || '—'}</span>
               </div>
             ) : null}
+            <div>
+              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Remarks</span>
+              <span className="font-semibold text-slate-700 block max-w-[200px] truncate" title={plant.remarks}>{plant.remarks || '—'}</span>
+            </div>
           </div>
         </div>
 
@@ -1878,16 +1881,6 @@ const PlantDetail = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="text-sm mt-4">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
-                      <textarea
-                        name="remarks"
-                        defaultValue={ppcData?.remarks || ''}
-                        placeholder="Add additional remarks or notes here..."
-                        rows={3}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
-                      />
-                    </div>
                   </div>
 
                   {/* Form Buttons */}
@@ -2111,6 +2104,16 @@ const PlantDetail = () => {
                     <input
                       type="date" name="commissioned_date"
                       defaultValue={plant.commissioned_date ? new Date(plant.commissioned_date).toISOString().split('T')[0] : ''}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
+                    <textarea
+                      name="remarks"
+                      defaultValue={plant.remarks || ''}
+                      placeholder="Enter remarks..."
+                      rows={2}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:border-teal-500 bg-white"
                     />
                   </div>

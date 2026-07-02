@@ -255,6 +255,7 @@ const AdminDashboard = () => {
       connection_type: formData.get('connection_type') || null,
       region: formData.get('connection_type') === 'ISTS CONNECTED' ? (formData.get('region') || null) : null,
       state: formData.get('connection_type') === 'INTRA-STATE CONNECTED' ? (formData.get('state') || null) : null,
+      remarks: formData.get('remarks') || null,
     };
 
     try {
@@ -385,7 +386,7 @@ const AdminDashboard = () => {
 
   const handleExportPlantInsightsCSV = () => {
     try {
-      const headers = ['Plant Name', 'Company Group', 'Location', 'Region', 'Capacity (MW)', 'Total Inverters', 'Total Inverter Capacity (MW)', 'Inverter Make', 'PPC OEM', 'SVG Make'];
+      const headers = ['Plant Name', 'Company Group', 'Location', 'Region', 'Capacity (MW)', 'Total Inverters', 'Total Inverter Capacity (MW)', 'Inverter Make', 'PPC OEM', 'SVG Make', 'Remarks'];
       const rows = plants.map(p => {
         const regionVal = p.connection_type === 'ISTS CONNECTED'
           ? `ISTS-${p.region === 'NORTHERN REGION' ? 'NR' : p.region === 'WESTERN REGION' ? 'WR' : p.region === 'SOUTHERN REGION' ? 'SR' : p.region === 'EASTERN REGION' ? 'ER' : p.region === 'NORTH EASTERN REGION' ? 'NER' : p.region || ''}`
@@ -402,7 +403,8 @@ const AdminDashboard = () => {
           Number(p.total_inverter_capacity).toFixed(2),
           p.inverter_makes || '—',
           p.ppc_oem || '—',
-          p.svg_makes || '—'
+          p.svg_makes || '—',
+          p.remarks || '—'
         ];
       });
 
@@ -434,7 +436,7 @@ const AdminDashboard = () => {
         'Voltage Droop %', 'Max Q Inj (MVAr)', 'Max Q Abs (MVAr)', 'Comm Time (ms)',
         'Sampling Time (ms)', 'Total Exec Time (ms)', 'Proportional Gain (Kp)', 'Integral Time Constant (Ti)',
         'Freq Control Mode', 'Freq Deadband', 'Freq Droop %', 'Power Reduction @ 50.3Hz',
-        'Evacuating Line', 'POI', 'Owner', 'Remarks'
+        'Evacuating Line', 'POI', 'Owner'
       ];
       
       const filtered = ppcSettingsList.filter(item => {
@@ -472,8 +474,7 @@ const AdminDashboard = () => {
         ppc.power_reduction_at_50_3hz || '—',
         ppc.evacuating_line || '—',
         ppc.poi || '—',
-        ppc.owner || '—',
-        ppc.remarks || '—'
+        ppc.owner || '—'
       ]);
 
       const csvContent = [
@@ -1254,6 +1255,7 @@ const AdminDashboard = () => {
                           <th className="p-3 border border-slate-200">Inverter Make</th>
                           <th className="p-3 border border-slate-200">PPC OEM</th>
                           <th className="p-3 border border-slate-200">SVG Make</th>
+                          <th className="p-3 border border-slate-200">Remarks</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 text-sm">
@@ -1275,6 +1277,7 @@ const AdminDashboard = () => {
                               <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.inverter_makes || '—'}</td>
                               <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.ppc_oem || '—'}</td>
                               <td className="p-3 border border-slate-200 text-slate-600 font-medium">{p.svg_makes || '—'}</td>
+                              <td className="p-3 border border-slate-200 text-slate-500 max-w-[150px] truncate" title={p.remarks}>{p.remarks || '—'}</td>
                             </tr>
                           );
                         })}
@@ -1912,7 +1915,6 @@ const AdminDashboard = () => {
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">Evacuating Line</th>
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">POI</th>
                         <th className="p-3 border border-slate-200 bg-slate-100 w-48">Owner</th>
-                        <th className="p-3 border border-slate-200 bg-slate-100 w-64">Remarks</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 text-slate-700 bg-white">
@@ -1930,7 +1932,7 @@ const AdminDashboard = () => {
                         if (filtered.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="26" className="text-center py-8 font-medium text-slate-400">
+                              <td colSpan="25" className="text-center py-8 font-medium text-slate-400">
                                 No PPC configuration records found matching your filters.
                               </td>
                             </tr>
@@ -1964,7 +1966,6 @@ const AdminDashboard = () => {
                             <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.evacuating_line}>{ppc.evacuating_line || '—'}</td>
                             <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.poi}>{ppc.poi || '—'}</td>
                             <td className="p-3 border border-slate-200">{ppc.owner || '—'}</td>
-                            <td className="p-3 border border-slate-200 text-slate-500 max-w-[200px] truncate" title={ppc.remarks}>{ppc.remarks || '—'}</td>
                           </tr>
                         ));
                       })()}
@@ -2294,6 +2295,17 @@ const AdminDashboard = () => {
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
+                  <textarea
+                    name="remarks"
+                    defaultValue={plantModal.type === 'edit' ? plantModal.data.remarks : ''}
+                    placeholder="Enter remarks..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-rose-500 bg-white"
+                  />
                 </div>
 
                 <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">

@@ -130,7 +130,7 @@ const getPlantById = async (req, res) => {
 
 // POST /api/plants - create plant (Admin or standard user)
 const createPlant = async (req, res) => {
-  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state } = req.body;
+  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state, remarks } = req.body;
 
   if (!name || !location || !capacity_mw) {
     return res.status(400).json({ error: 'Required fields: name, location, capacity_mw' });
@@ -141,10 +141,10 @@ const createPlant = async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO power_plants (name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      `INSERT INTO power_plants (name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state, remarks) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
        RETURNING *`,
-      [name, location, capacity_mw, commissioned_date || null, owner || null, finalCompanyGroup, pooling_station || null, pooling_station_id ? parseInt(pooling_station_id, 10) : null, connection_type || null, region || null, state || null]
+      [name, location, capacity_mw, commissioned_date || null, owner || null, finalCompanyGroup, pooling_station || null, pooling_station_id ? parseInt(pooling_station_id, 10) : null, connection_type || null, region || null, state || null, remarks || null]
     );
 
     const createdPlant = result.rows[0];
@@ -179,7 +179,7 @@ const createPlant = async (req, res) => {
 // PUT /api/plants/:id - update plant (Admin only)
 const updatePlant = async (req, res) => {
   const { id } = req.params;
-  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state } = req.body;
+  const { name, location, capacity_mw, commissioned_date, owner, company_group, pooling_station, pooling_station_id, connection_type, region, state, remarks } = req.body;
 
   try {
     const check = await db.query('SELECT * FROM power_plants WHERE id = $1', [id]);
@@ -202,7 +202,8 @@ const updatePlant = async (req, res) => {
       pooling_station_id: 'Pooling Station',
       connection_type: 'Connection Type',
       region: 'Region',
-      state: 'State'
+      state: 'State',
+      remarks: 'Remarks'
     };
 
     for (const [key, label] of Object.entries(fieldsToCompare)) {
@@ -225,8 +226,9 @@ const updatePlant = async (req, res) => {
            pooling_station_id = $8,
            connection_type = $9,
            region = $10,
-           state = $11
-       WHERE id = $12 
+           state = $11,
+           remarks = $12
+       WHERE id = $13 
        RETURNING *`,
       [
         name || null,
@@ -240,6 +242,7 @@ const updatePlant = async (req, res) => {
         connection_type || null,
         region || null,
         state || null,
+        remarks || null,
         id
       ]
     );
